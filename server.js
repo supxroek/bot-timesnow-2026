@@ -7,6 +7,8 @@ const rateLimit = require("express-rate-limit");
 // โหลด environment variables จาก .env
 require("dotenv").config();
 
+const errorMiddleware = require("./src/shared/middlewares/error.middleware");
+
 // สร้าง app Express
 const app = express();
 
@@ -88,7 +90,10 @@ app
 // =================================================================================
 // เรียกใช้ routes ทั้งหมดจาก src/app.js
 const routes = require("./src/app");
-app.use("/api", routes); // Mount all routes under /api
+app.use(routes);
+
+// Use error middleware
+app.use(errorMiddleware);
 
 // ตรวจสอบการเชื่อมต่อเบื้องต้น
 app.get("/health", (_, res) => {

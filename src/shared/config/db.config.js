@@ -2,7 +2,7 @@ const mysql = require("mysql2/promise");
 const fs = require("node:fs");
 
 /**
- * /config/database.js
+ * src/shared/config/db.config.js
  *
  * การเชื่อมต่อ MySQL พร้อมการรองรับ SSL และการแยกสภาพแวดล้อม
  * - Development: การเชื่อมต่อ TCP แบบง่าย (optional local SSL)
@@ -88,32 +88,8 @@ const createPool = () => {
   return pool;
 };
 
-/** --------------------------------------------------------------
- * ใช้สำหรับเชื่อมต่อฐานข้อมูล MySQL เพื่อทดสอบระบบ เพื่อไม่ให้กระทบกับฐานข้อมูลหลัก
- * ---------------------------------------------------------------
- */
-const testPool = () => {
-  // การตั้งค่าสำหรับ Testing (TCP connection)
-  const testConfig = {
-    host: "localhost",
-    port: 3306,
-    user: "myuser",
-    password: "mypassword",
-    database: "mydb",
-    connectionLimit: 5,
-  };
-  console.log("🔵 Connecting to test database...");
-  // Test connection database here if needed
-  const pool = mysql.createPool(testConfig);
-  console.log("🟢 Connected to test database.");
-  return pool;
-};
-
 // สร้างพูลการเชื่อมต่อ สำหรับแอปหลัก
 const pool = createPool();
-
-// สร้างพูลการเชื่อมต่อ สำหรับการทดสอบ
-// const pool = testPool();
 
 // ส่งออกพูลการเชื่อมต่อ
 module.exports = pool;
