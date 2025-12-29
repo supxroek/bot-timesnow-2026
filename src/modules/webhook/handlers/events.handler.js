@@ -33,76 +33,103 @@ class EventsHandler {
     return null; // หากไม่พบเจตนาใด ๆ
   }
 
+  // ฟังก์ชันสำหรับตอบกลับหรือส่งข้อความ (reply or push)
+  async replyOrPush(event, messages) {
+    const { replyToken, source } = event;
+    try {
+      // ตรวจสอบว่า replyToken ถูกต้องหรือไม่
+      if (replyToken && replyToken !== "00000000000000000000000000000000") {
+        await lineProvider.reply(replyToken, messages);
+      } else if (source?.userId) {
+        // เพิ่ม fallback เป็นการส่งข้อความแบบ push หาก replyToken ไม่ถูกต้อง
+        console.log("ReplyToken ไม่ถูกต้อง, กำลังส่งข้อความแบบ push แทน...");
+        await lineProvider.push(source.userId, messages);
+      } else {
+        console.warn(
+          "Cannot send message: Missing both replyToken and userId."
+        );
+      }
+    } catch (error) {
+      console.error("Error in replyOrPush:", error.message);
+    }
+  }
+
   // ฟังก์ชันจัดการ events สำหรับ message
   async handleMessage(event) {
-    const { message, replyToken } = event;
+    const { message } = event;
 
     if (message.type === "text") {
       const text = message.text;
       const intent = this.detectIntent(text);
+      let replyMessage;
+
       // ตอบกลับตามเจตนาที่ตรวจพบ
       switch (intent) {
         case "GREETING":
-          await lineProvider.reply(replyToken, {
+          replyMessage = {
             type: "text",
             text: "สวัสดีครับ/ค่ะ! มีอะไรให้ช่วยไหมครับ/ค่ะ?",
-          });
+          };
           break;
         case "HELP":
-          await lineProvider.reply(replyToken, {
+          replyMessage = {
             type: "text",
             text: "แน่นอนครับ/ค่ะ! ฉันสามารถช่วยอะไรคุณได้บ้างวันนี้?",
-          });
+          };
           break;
         case "THANKS":
-          await lineProvider.reply(replyToken, {
+          replyMessage = {
             type: "text",
             text: "ยินดีครับ/ค่ะ! 😊",
-          });
+          };
           break;
         case "REGISTERATION":
-          await lineProvider.reply(replyToken, {
+          replyMessage = {
             type: "text",
             text: "หากต้องการลงทะเบียน กรุณาเยี่ยมชมหน้าลงทะเบียนของเราที่ [ลิงก์]",
-          });
+          };
           break;
         case "ATTENDANCE_IN":
-          await lineProvider.reply(replyToken, {
+          replyMessage = {
             type: "text",
             text: "คุณสามารถเช็คอินโดยใช้ระบบหรืแอปพลิเคชันบันทึกเวลาทำงานของเราได้ครับ/ค่ะ",
-          });
+          };
           break;
         case "ATTENDANCE_OUT":
-          await lineProvider.reply(replyToken, {
+          replyMessage = {
             type: "text",
             text: "คุณสามารถเช็คเอาท์โดยใช้ระบบเดียวกับที่ใช้เช็คอินได้ครับ/ค่ะ",
-          });
+          };
           break;
         case "FORGOT_ATTENDANCE":
-          await lineProvider.reply(replyToken, {
+          replyMessage = {
             type: "text",
             text: "หากคุณลืมบันทึกเวลาทำงาน กรุณาติดต่อฝ่ายบุคคลเพื่อขอความช่วยเหลือครับ/ค่ะ",
-          });
+          };
           break;
         case "WORK_CALCULATION":
-          await lineProvider.reply(replyToken, {
+          replyMessage = {
             type: "text",
             text: "คุณสามารถคำนวณชั่วโมงทำงานของคุณได้โดยใช้เครื่องมือคำนวณออนไลน์ของเราที่ [ลิงก์]",
-          });
+          };
           break;
         default:
-          await lineProvider.reply(replyToken, {
+          replyMessage = {
             type: "text",
             text: `ขอโทษครับ/ค่ะ คำถามของคุณ "${message.text}" ไม่อยู่ในขอบเขตที่ฉันสามารถช่วยได้ในตอนนี้ 🙂`,
-          });
+          };
+      }
+
+      if (replyMessage) {
+        await this.replyOrPush(event, replyMessage);
       }
     } else if (message.type === "sticker") {
-      await lineProvider.reply(replyToken, {
+      await this.replyOrPush(event, {
         type: "text",
         text: "ขอบคุณสำหรับสติกเกอร์นะครับ/ค่ะ! 😊",
       });
     } else {
-      await lineProvider.reply(replyToken, {
+      await this.replyOrPush(event, {
         type: "text",
         text: "ขออภัยครับ/ค่ะ ตอนนี้ฉันสามารถจัดการข้อความประเภทข้อความเท่านั้น",
       });
@@ -111,7 +138,7 @@ class EventsHandler {
 
   // ฟังก์ชันจัดการ events สำหรับ follow
   async handleFollow(event) {
-    const { replyToken, source } = event;
+    const { source } = event;
 
     // Welcome message when user follows the bot
     const welcomeMessage = {
@@ -121,12 +148,12 @@ class EventsHandler {
       }! ขอบคุณที่ติดตามบอทของเรา พิมพ์ 'สวัสดี' เพื่อเริ่มต้นการสนทนา!`,
     };
 
-    await lineProvider.reply(replyToken, welcomeMessage);
+    await this.replyOrPush(event, welcomeMessage);
   }
 
   // ฟังก์ชันจัดการ events สำหรับ beacon
   async handleBeacon(event) {
-    const { replyToken, beacon } = event;
+    const { beacon } = event;
 
     // Log beacon information
     console.log("Beacon event received:", {
@@ -141,7 +168,7 @@ class EventsHandler {
       text: `Beacon detected! Type: ${beacon.type}, HWID: ${beacon.hwid}`,
     };
 
-    await lineProvider.reply(replyToken, replyMessage);
+    await this.replyOrPush(event, replyMessage);
   }
 }
 

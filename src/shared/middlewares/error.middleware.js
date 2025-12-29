@@ -29,6 +29,13 @@ const handleJWTExpiredError = () =>
   new AppError("โทเค็นของคุณหมดอายุแล้ว! กรุณาเข้าสู่ระบบใหม่อีกครั้ง.", 401);
 
 const sendErrorDev = (err, res) => {
+  console.error("ERROR 💥", err); // Log error to console in development
+  if (err.originalError?.response?.data) {
+    console.error(
+      "LINE API Error Details:",
+      JSON.stringify(err.originalError.response.data, null, 2)
+    );
+  }
   res.status(err.statusCode).json({
     status: err.status,
     error: err,
