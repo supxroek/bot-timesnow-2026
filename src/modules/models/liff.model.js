@@ -5,6 +5,7 @@
  */
 
 const db = require("../../shared/config/db.config");
+const { normalizeToDate } = require("../../shared/utils/date");
 
 // โมเดลสำหรับข้อมูลบริษัท
 class Companies {
@@ -34,11 +35,13 @@ class Employee {
 
   // สร้างสมาชิกใหม่
   async create(memberData) {
-    const { name, ID_or_Passport_Number, companyId, lineUserId, start_date } =
+    const { name, IDCard, companyId, lineUserId, start_date } =
       memberData;
+
+    const normalizedStart = normalizeToDate(start_date);
     const [rows] = await db.query(
       "INSERT INTO employees (name, ID_or_Passport_Number, companyId, lineUserId, start_date) VALUES (?, ?, ?, ?, ?)",
-      [name, ID_or_Passport_Number, companyId, lineUserId, start_date]
+      [name, IDCard, companyId, lineUserId, normalizedStart]
     );
     return rows;
   }

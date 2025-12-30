@@ -25,13 +25,13 @@ class LiffController {
 
   // ฟังก์ชันสำหรับลงทะเบียนสมาชิกผ่าน LIFF
   register = catchAsync(async (req, res, _next) => {
-    const { name, id_card, companyId, lineUserId, start_date } = req.body;
-    if (!name || !id_card || !companyId || !lineUserId || !start_date) {
+    const { name, IDCard, companyId, lineUserId, start_date } = req.body;
+    if (!name || !IDCard || !companyId || !lineUserId || !start_date) {
       throw new AppError("ข้อมูลไม่ครบถ้วนสำหรับการลงทะเบียน", 400);
     }
     const result = await registerService({
       name,
-      id_card,
+      IDCard,
       companyId,
       lineUserId,
       start_date,

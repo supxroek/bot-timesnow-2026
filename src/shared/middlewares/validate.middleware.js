@@ -37,7 +37,8 @@ const authSchemas = {
   register: Joi.object({
     name: Joi.string().min(3).max(30).required(),
     IDCard: Joi.string().length(13).required(),
-    conpanyId: Joi.number().integer().positive().required(),
+    companyId: Joi.number().integer().positive().required(),
+    lineUserId: Joi.string().max(100).required(),
     start_date: Joi.date().iso().required(),
   }),
 };

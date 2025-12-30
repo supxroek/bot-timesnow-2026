@@ -8,6 +8,7 @@ const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 
 const errorMiddleware = require("./src/shared/middlewares/error.middleware");
+const AppError = require("./src/shared/utils/AppError");
 
 // สร้าง app Express
 const app = express();
@@ -163,6 +164,19 @@ if (require.main === module) {
 
   // ตัวจัดการปิดเซิร์ฟเวอร์อย่างปลอดภัยเมื่อเกิดข้อผิดพลาดที่ไม่คาดคิด
   process.on("unhandledRejection", (reason) => {
+    // If this is an operational AppError, log and continue (don't crash the process)
+    if (reason && typeof reason === "object") {
+      const isOperational =
+        reason.isOperational === true || reason instanceof AppError;
+      if (isOperational) {
+        console.warn(
+          "Non-fatal unhandled rejection (operational):",
+          reason.message || reason
+        );
+        return;
+      }
+    }
+
     console.error("Unhandled Rejection:", reason);
     if (server?.close) {
       server.close(() => process.exit(1));
