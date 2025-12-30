@@ -2,6 +2,11 @@
 
 // import providers
 const lineProvider = require("../../../shared/providers/line.provider");
+const {
+  greetingFlex,
+  welcomeNewUserFlex,
+  unknownCommandFlex,
+} = require("../../../shared/templates/flex/modules/greeting.flex");
 
 // intents keywords
 const INTENTS = {
@@ -66,10 +71,7 @@ class EventsHandler {
       // ตอบกลับตามเจตนาที่ตรวจพบ
       switch (intent) {
         case "GREETING":
-          replyMessage = {
-            type: "text",
-            text: "สวัสดีครับ/ค่ะ! มีอะไรให้ช่วยไหมครับ/ค่ะ?",
-          };
+          replyMessage = greetingFlex();
           break;
         case "HELP":
           replyMessage = {
@@ -114,10 +116,7 @@ class EventsHandler {
           };
           break;
         default:
-          replyMessage = {
-            type: "text",
-            text: `ขอโทษครับ/ค่ะ คำถามของคุณ "${message.text}" ไม่อยู่ในขอบเขตที่ฉันสามารถช่วยได้ในตอนนี้ 🙂`,
-          };
+          replyMessage = unknownCommandFlex(text);
       }
 
       if (replyMessage) {
@@ -139,16 +138,18 @@ class EventsHandler {
   // ฟังก์ชันจัดการ events สำหรับ follow
   async handleFollow(event) {
     const { source } = event;
-
-    // Welcome message when user follows the bot
-    const welcomeMessage = {
-      type: "text",
-      text: `ยินดีต้อนรับ ${
-        source.userId ? "ผู้ใช้ที่รัก" : "ทุกคน"
-      }! ขอบคุณที่ติดตามบอทของเรา พิมพ์ 'สวัสดี' เพื่อเริ่มต้นการสนทนา!`,
-    };
-
-    await this.replyOrPush(event, welcomeMessage);
+    try {
+      await this.replyOrPush(event, welcomeNewUserFlex());
+    } catch (error) {
+      console.error("Failed to send flex message:", error.message);
+      const textWelcomeMessage = {
+        type: "text",
+        text: `ยินดีต้อนรับ ${
+          source.userId ? "ผู้ใช้ที่รัก" : "ทุกคน"
+        }! ขอบคุณที่ติดตามบอทของเรา พิมพ์ 'สวัสดี' เพื่อเริ่มต้นการสนทนา!`,
+      };
+      await this.replyOrPush(event, textWelcomeMessage);
+    }
   }
 
   // ฟังก์ชันจัดการ events สำหรับ beacon
