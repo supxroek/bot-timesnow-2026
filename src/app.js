@@ -3,7 +3,7 @@ const router = express.Router();
 
 // Import routes
 const webhookRoutes = require("./modules/webhook/webhook");
-const liffRoutes = require("./modules/liff/liff.routes");
+const liffRoutes = require("./modules/api/liff.routes");
 
 // Import middlewares
 const lineSignature = require("./shared/middlewares/line-signature");

@@ -1,7 +1,7 @@
 // src/modules/webhook/webhook.js
 
 const catchAsync = require("../../shared/utils/catchAsync");
-const eventHandlers = require("./handlers/events.handler");
+const eventHandlers = require("./events.handler");
 
 class Webhook {
   // ฟังก์ชันสำหรับจัดการ webhook events จาก LINE

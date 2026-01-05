@@ -1,12 +1,12 @@
 // src/modules/webhook/handlers/events.handler.js
 
 // import providers
-const lineProvider = require("../../../shared/providers/line.provider");
+const lineProvider = require("../../shared/providers/line.provider");
 const {
   greetingFlex,
   welcomeNewUserFlex,
   unknownCommandFlex,
-} = require("../../../shared/templates/flex/modules/greeting.flex");
+} = require("../../shared/templates/flex/modules/greeting.flex");
 
 // intents keywords
 const INTENTS = {
