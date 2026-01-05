@@ -34,10 +34,34 @@ const INTENTS = {
 
   // Specific service inquiries - สำหรับการสอบถามบริการเฉพาะ
   REGISTERATION: ["register", "sign up", "สมัคร", "ลงทะเบียน"],
-  ATTENDANCE_IN: ["check in", "attendance in", "เช็คอิน", "ลงชื่อเข้าใช้", "เข้างาน", "บันทึกเวลาเข้างาน"],
-  ATTENDANCE_OUT: ["check out", "attendance out", "เช็คเอาท์", "ลงชื่อออก", "ออกงาน", "บันทึกเวลาออกงาน"],
-  FORGOT_ATTENDANCE: ["forgot attendance", "ลืมบันทึกเวลา", "ลืมเช็คอิน", "ลืมเช็คเอาท์"],
-  WORK_CALCULATION: ["work hours", "calculate work", "คำนวณชั่วโมงทำงาน", "คำนวณเวลางาน"],
+  ATTENDANCE_IN: [
+    "check in",
+    "attendance in",
+    "เช็คอิน",
+    "ลงชื่อเข้าใช้",
+    "เข้างาน",
+    "บันทึกเวลาเข้างาน",
+  ],
+  ATTENDANCE_OUT: [
+    "check out",
+    "attendance out",
+    "เช็คเอาท์",
+    "ลงชื่อออก",
+    "ออกงาน",
+    "บันทึกเวลาออกงาน",
+  ],
+  FORGOT_ATTENDANCE: [
+    "forgot attendance",
+    "ลืมบันทึกเวลา",
+    "ลืมเช็คอิน",
+    "ลืมเช็คเอาท์",
+  ],
+  WORK_CALCULATION: [
+    "work hours",
+    "calculate work",
+    "คำนวณชั่วโมงทำงาน",
+    "คำนวณเวลางาน",
+  ],
 };
 
 function pickExamples() {
@@ -184,89 +208,107 @@ function unknownCommandFlex(cmd = "") {
   const examples = pickExamples();
 
   const bubble = base.buildBubble({
-    title: "คำสั่งไม่ถูกต้อง",
-    subTitle: { text: "กรุณาลองอีกครั้ง", color: "#FF4B4B" },
+    title: "ไม่พบคำสั่ง",
+    subTitle: { text: "ขออภัย ระบบไม่เข้าใจคำสั่งนี้", color: "#888888" },
     contents: [
-      {
-        type: "text",
-        text: "เราไม่เข้าใจคำสั่งที่ส่งมา",
-        size: "sm",
-        color: "#555555",
-        wrap: true,
-        margin: "xs",
-      },
-
-      {
-        type: "text",
-        text: cmd ? `"${cmd}"` : '"(ไม่มีคำสั่ง)"',
-        size: "md",
-        weight: "bold",
-        color: "#D64545",
-        align: "center",
-        wrap: true,
-        margin: "xs",
-        maxLines: 2,
-      },
-
-      atoms.separator("sm"),
-
-      {
-        type: "text",
-        text: "ตัวอย่างคำสั่งที่ใช้ได้ (ตัวอย่าง):",
-        size: "sm",
-        weight: "bold",
-        color: "#222222",
-        margin: "xs",
-      },
-
-      // examples as numbered vertical list to support long commands
+      // Display the invalid command nicely
       {
         type: "box",
         layout: "vertical",
-        spacing: "xs",
-        contents: examples.map((ex, idx) => ({
+        backgroundColor: "#F5F5F5",
+        cornerRadius: "md",
+        paddingAll: "md",
+        contents: [
+          {
+            type: "text",
+            text: cmd ? `"${cmd}"` : '"(ว่าง)"',
+            size: "sm",
+            weight: "bold",
+            color: "#FF4B4B",
+            align: "center",
+            wrap: true,
+          },
+        ],
+        margin: "md",
+      },
+
+      atoms.separator("lg"),
+
+      // Suggestions Header
+      {
+        type: "text",
+        text: "ลองใช้คำสั่งเหล่านี้ดูไหมครับ?",
+        size: "sm",
+        weight: "bold",
+        color: "#111111",
+        margin: "md",
+      },
+
+      // Suggestions List
+      {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        margin: "sm",
+        contents: examples.map((ex) => ({
           type: "box",
           layout: "baseline",
-          spacing: "xs",
+          spacing: "sm",
           contents: [
             {
               type: "text",
-              text: `${idx + 1}.`,
-              size: "sm",
-              color: "#1DB446",
-              weight: "bold",
-              flex: 0,
-              margin: "xs",
+              text: "-", // Arrow bullet
+              size: "xs",
+              // color: "#1DB446", // Brand green
+              flex: 1,
+              align: "end",
+              // offsetTop: "1px",
             },
             {
               type: "text",
               text: ex,
               size: "sm",
-              color: "#1DB446",
+              color: "#333333",
+              flex: 10,
               wrap: true,
-              margin: "xs",
-              flex: 6,
-              maxLines: 3,
             },
           ],
         })),
       },
 
-      atoms.separator("sm"),
+      // atoms.separator("lg"),
 
-      {
-        type: "text",
-        text: 'หรือพิมพ์ "ช่วยเหลือ" เพื่อดูรายการคำสั่งที่รองรับ',
-        size: "xs",
-        color: "#8c8c8c",
-        align: "center",
-        wrap: true,
-        margin: "xs",
-      },
+      // // Call to Action
+      // {
+      //   type: "box",
+      //   layout: "vertical",
+      //   contents: [
+      //     {
+      //       type: "text",
+      //       text: "หรือพิมพ์คำว่า",
+      //       size: "xs",
+      //       color: "#aaaaaa",
+      //       align: "center",
+      //     },
+      //     {
+      //       type: "button",
+      //       style: "link",
+      //       height: "sm",
+      //       action: {
+      //         type: "message",
+      //         label: "ช่วยเหลือ (Help)",
+      //         text: "ช่วยเหลือ",
+      //       },
+      //       color: "#1DB446",
+      //     },
+      //   ],
+      //   spacing: "xs",
+      //   margin: "md",
+      // },
     ],
   });
 
-  return { type: "flex", altText: "คำสั่งไม่ถูกต้อง", contents: bubble };
+  return { type: "flex", altText: "ไม่พบคำสั่ง", contents: bubble };
 }
 
 module.exports = { greetingFlex, welcomeNewUserFlex, unknownCommandFlex };
