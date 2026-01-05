@@ -2,6 +2,7 @@
 
 // import providers
 const lineProvider = require("../../shared/providers/line.provider");
+const { Employee } = require("../models/liff.model");
 const {
   greetingFlex,
   welcomeNewUserFlex,
@@ -59,69 +60,78 @@ class EventsHandler {
     }
   }
 
+  // ฟังก์ชันตรวจสอบและยกเลิก Rich Menu หากสมาชิกลาออก
+  async checkMemberStatus(source) {
+    if (!source?.userId) return;
+    try {
+      const activeMember = await Employee.findActiveByLineUserId({
+        where: { userId: source.userId },
+      });
+      if (!activeMember) {
+        console.log(
+          `ผู้ใช้ ${source.userId} ได้ลาออกแล้ว กำลังยกเลิก Rich Menu.`
+        );
+        await lineProvider.unlinkRichMenu(source.userId);
+      }
+    } catch (err) {
+      console.error("Error checking member status in webhook:", err);
+    }
+  }
+
+  // ฟังก์ชันจัดการข้อความประเภท text
+  async handleTextMessage(event) {
+    const { message } = event;
+    const text = message.text;
+    const intent = this.detectIntent(text);
+    const responses = {
+      GREETING: greetingFlex(),
+      HELP: {
+        type: "text",
+        text: "แน่นอนครับ/ค่ะ! ฉันสามารถช่วยอะไรคุณได้บ้างวันนี้?",
+      },
+      THANKS: {
+        type: "text",
+        text: "ยินดีครับ/ค่ะ! 😊",
+      },
+      REGISTERATION: {
+        type: "text",
+        text: "หากต้องการลงทะเบียน กรุณาเยี่ยมชมหน้าลงทะเบียนของเราที่ [ลิงก์]",
+      },
+      ATTENDANCE_IN: {
+        type: "text",
+        text: "คุณสามารถเช็คอินโดยใช้ระบบหรืแอปพลิเคชันบันทึกเวลาทำงานของเราได้ครับ/ค่ะ",
+      },
+      ATTENDANCE_OUT: {
+        type: "text",
+        text: "คุณสามารถเช็คเอาท์โดยใช้ระบบเดียวกับที่ใช้เช็คอินได้ครับ/ค่ะ",
+      },
+      FORGOT_ATTENDANCE: {
+        type: "text",
+        text: "หากคุณลืมบันทึกเวลาทำงาน กรุณาติดต่อฝ่ายบุคคลเพื่อขอความช่วยเหลือครับ/ค่ะ",
+      },
+      WORK_CALCULATION: {
+        type: "text",
+        text: "คุณสามารถคำนวณชั่วโมงทำงานของคุณได้โดยใช้เครื่องมือคำนวณออนไลน์ของเราที่ [ลิงก์]",
+      },
+    };
+    const replyMessage = responses[intent] || unknownCommandFlex(text);
+    if (replyMessage) {
+      await this.replyOrPush(event, replyMessage);
+    }
+  }
+
   // ฟังก์ชันจัดการ events สำหรับ message
   async handleMessage(event) {
-    const { message } = event;
+    const { message, source } = event;
+
+    // แสดง Loading Animation และตรวจสอบสถานะสมาชิก
+    if (source?.userId) {
+      await lineProvider.showLoadingAnimation(source.userId);
+      await this.checkMemberStatus(source);
+    }
 
     if (message.type === "text") {
-      const text = message.text;
-      const intent = this.detectIntent(text);
-      let replyMessage;
-
-      // ตอบกลับตามเจตนาที่ตรวจพบ
-      switch (intent) {
-        case "GREETING":
-          replyMessage = greetingFlex();
-          break;
-        case "HELP":
-          replyMessage = {
-            type: "text",
-            text: "แน่นอนครับ/ค่ะ! ฉันสามารถช่วยอะไรคุณได้บ้างวันนี้?",
-          };
-          break;
-        case "THANKS":
-          replyMessage = {
-            type: "text",
-            text: "ยินดีครับ/ค่ะ! 😊",
-          };
-          break;
-        case "REGISTERATION":
-          replyMessage = {
-            type: "text",
-            text: "หากต้องการลงทะเบียน กรุณาเยี่ยมชมหน้าลงทะเบียนของเราที่ [ลิงก์]",
-          };
-          break;
-        case "ATTENDANCE_IN":
-          replyMessage = {
-            type: "text",
-            text: "คุณสามารถเช็คอินโดยใช้ระบบหรืแอปพลิเคชันบันทึกเวลาทำงานของเราได้ครับ/ค่ะ",
-          };
-          break;
-        case "ATTENDANCE_OUT":
-          replyMessage = {
-            type: "text",
-            text: "คุณสามารถเช็คเอาท์โดยใช้ระบบเดียวกับที่ใช้เช็คอินได้ครับ/ค่ะ",
-          };
-          break;
-        case "FORGOT_ATTENDANCE":
-          replyMessage = {
-            type: "text",
-            text: "หากคุณลืมบันทึกเวลาทำงาน กรุณาติดต่อฝ่ายบุคคลเพื่อขอความช่วยเหลือครับ/ค่ะ",
-          };
-          break;
-        case "WORK_CALCULATION":
-          replyMessage = {
-            type: "text",
-            text: "คุณสามารถคำนวณชั่วโมงทำงานของคุณได้โดยใช้เครื่องมือคำนวณออนไลน์ของเราที่ [ลิงก์]",
-          };
-          break;
-        default:
-          replyMessage = unknownCommandFlex(text);
-      }
-
-      if (replyMessage) {
-        await this.replyOrPush(event, replyMessage);
-      }
+      await this.handleTextMessage(event);
     } else if (message.type === "sticker") {
       await this.replyOrPush(event, {
         type: "text",

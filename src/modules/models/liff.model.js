@@ -33,10 +33,18 @@ class Employee {
     return rows[0];
   }
 
+  // ค้นหาสมาชิกที่ยังไม่ลาออกโดยใช้ userId
+  async findActiveByLineUserId({ where: { userId } }) {
+    const [rows] = await db.query(
+      "SELECT * FROM employees WHERE lineUserId = ? AND (resign_date IS NULL OR resign_date > CURDATE())",
+      [userId]
+    );
+    return rows[0];
+  }
+
   // สร้างสมาชิกใหม่
   async create(memberData) {
-    const { name, IDCard, companyId, lineUserId, start_date } =
-      memberData;
+    const { name, IDCard, companyId, lineUserId, start_date } = memberData;
 
     const normalizedStart = normalizeToDate(start_date);
     const [rows] = await db.query(
