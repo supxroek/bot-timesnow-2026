@@ -6,14 +6,16 @@
 
 // import services และอื่นๆ ที่จำเป็น
 const {
-  registerService,
-  forgetTimeService,
   companyService,
-} = require("../services/liff.service");
+  registerService,
+  approveService,
+  checkRegistrationStatusService,
+} = require("../services/register.service");
 const catchAsync = require("../../shared/utils/catchAsync");
 const AppError = require("../../shared/utils/AppError");
 
 class LiffController {
+  // ====================================================================
   // ฟังก์ชันสำหรับดึงข้อมูลบริษัททั้งหมด
   getCompanies = catchAsync(async (_req, res, _next) => {
     const companies = await companyService();
@@ -23,6 +25,7 @@ class LiffController {
     });
   });
 
+  // ====================================================================
   // ฟังก์ชันสำหรับลงทะเบียนสมาชิกผ่าน LIFF
   register = catchAsync(async (req, res, _next) => {
     const { name, IDCard, companyId, lineUserId, start_date } = req.body;
@@ -42,6 +45,41 @@ class LiffController {
     });
   });
 
+  // ====================================================================
+  // ฟังก์ชันสำหรับอนุมัติ/ปฏิเสธ การลงทะเบียนสมาชิก
+  approveRegistration = catchAsync(async (req, res, _next) => {
+    const { token, action, reason } = req.body;
+    if (!token) {
+      throw new AppError("ไม่พบ Token การยืนยันตัวตน", 400);
+    }
+    if (!action || !["approve", "reject"].includes(action)) {
+      throw new AppError(
+        "การดำเนินการไม่ถูกต้อง (ต้องเป็น approve หรือ reject)",
+        400
+      );
+    }
+    const result = await approveService({ token, action, reason });
+    res.status(200).json({
+      status: "success",
+      data: result,
+    });
+  });
+
+  // ====================================================================
+  // ฟังก์ชันสำหรับตรวจสอบสถานะการลงทะเบียน
+  checkRegistrationStatus = catchAsync(async (req, res, _next) => {
+    const { token } = req.body;
+    if (!token) {
+      throw new AppError("ไม่พบ Token การยืนยันตัวตน", 400);
+    }
+    const result = await checkRegistrationStatusService(token);
+    res.status(200).json({
+      status: "success",
+      data: result,
+    });
+  });
+
+  // ====================================================================
   // ฟังก์ชันสำหรับแจ้งลืมลงเวลางานผ่าน LIFF
   forgetTime = catchAsync(async (req, res, _next) => {
     const { userId, date, reason } = req.body;

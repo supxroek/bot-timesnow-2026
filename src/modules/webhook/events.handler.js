@@ -2,7 +2,7 @@
 
 // import providers
 const lineProvider = require("../../shared/providers/line.provider");
-const { Employee } = require("../models/liff.model");
+const { Employee } = require("../models/employee.model");
 const {
   greetingFlex,
   welcomeNewUserFlex,
@@ -18,7 +18,7 @@ const INTENTS = {
 
   // Specific service inquiries - สำหรับการสอบถามบริการเฉพาะ
   REGISTERATION: ["register", "sign up", "สมัคร", "ลงทะเบียน"],
-  ATTENDANCE_IN: ["check in", "attendance in", "เช็คอิน", "ลงชื่อเข้าใช้", "เข้างาน", "บันทึกเวลาเข้างาน"],
+  ATTENDANCE_IN: ["check in", "attendance in", "เช็คอิน", "ลงชื่อเข้าใช้", "เข้างาน", "บันทึกเวลางาน", "ลงเวลาทำงาน"],
   ATTENDANCE_OUT: ["check out", "attendance out", "เช็คเอาท์", "ลงชื่อออก", "ออกงาน", "บันทึกเวลาออกงาน"],
   FORGOT_ATTENDANCE: ["forgot attendance", "ลืมบันทึกเวลา", "ลืมเช็คอิน", "ลืมเช็คเอาท์"],
   WORK_CALCULATION: ["work hours", "calculate work", "คำนวณชั่วโมงทำงาน", "คำนวณเวลางาน"],
@@ -60,21 +60,41 @@ class EventsHandler {
     }
   }
 
-  // ฟังก์ชันตรวจสอบและยกเลิก Rich Menu หากสมาชิกลาออก
+  // ฟังก์ชันตรวจสอบสถานะสมาชิก (เช็คว่าผู้ใช้เป็นสมาชิกหรือไม่ หากเป็นสมาชิกให้เพิ่ม Rich Menu สมาชิกให้ และหากไม่ใช่ให้ลบ Rich Menu สมาชิก)
   async checkMemberStatus(source) {
     if (!source?.userId) return;
-    try {
-      const activeMember = await Employee.findActiveByLineUserId({
-        where: { userId: source.userId },
-      });
-      if (!activeMember) {
-        console.log(
-          `ผู้ใช้ ${source.userId} ได้ลาออกแล้ว กำลังยกเลิก Rich Menu.`
+    const member = await Employee.findActiveByLineUserId({
+      where: { userId: source.userId },
+    });
+    if (member) {
+      // หากเป็นสมาชิกที่ยังใช้งานอยู่ ให้ Link Rich Menu สำหรับสมาชิก
+      try {
+        await lineProvider.linkRichMenu(
+          source.userId,
+          "richmenu-30b97e17ac5d13d9cbe70bd9a0a04722"
         );
-        await lineProvider.unlinkRichMenu(source.userId);
+        console.log(
+          `เชื่อมต่อ Rich Menu สำหรับสมาชิกกับผู้ใช้ ${source.userId} เรียบร้อยแล้ว`
+        );
+      } catch (error) {
+        console.error(
+          `ไม่สามารถเชื่อมต่อ Rich Menu กับผู้ใช้ ${source.userId} ได้:`,
+          error
+        );
       }
-    } catch (err) {
-      console.error("Error checking member status in webhook:", err);
+    } else {
+      // หากไม่ใช่สมาชิกที่ยังใช้งานอยู่ ให้ Unlink Rich Menu สำหรับสมาชิก
+      try {
+        await lineProvider.unlinkRichMenu(source.userId);
+        console.log(
+          `ยกเลิกการเชื่อมต่อ Rich Menu สำหรับสมาชิกกับผู้ใช้ ${source.userId} เรียบร้อยแล้ว`
+        );
+      } catch (error) {
+        console.error(
+          `ไม่สามารถยกเลิกการเชื่อมต่อ Rich Menu กับผู้ใช้ ${source.userId} ได้:`,
+          error
+        );
+      }
     }
   }
 

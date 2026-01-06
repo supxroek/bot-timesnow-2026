@@ -41,6 +41,14 @@ const authSchemas = {
     lineUserId: Joi.string().max(100).required(),
     start_date: Joi.date().iso().required(),
   }),
+  approve: Joi.object({
+    token: Joi.string().required(),
+    action: Joi.string().valid("approve", "reject").required(),
+    reason: Joi.string().max(500).allow("", null),
+  }),
+  checkStatus: Joi.object({
+    token: Joi.string().required(),
+  }),
 };
 
 // ========================================

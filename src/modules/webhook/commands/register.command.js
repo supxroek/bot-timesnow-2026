@@ -3,7 +3,7 @@
 // จัดการการตอบกลับเมื่อผู้ใช้ส่งคำสั่งลงทะเบียนผ่านแชท เช่น ลงทะเบียนแล้วหรือไม่ เป็นต้น
 
 const lineProvider = require("../../../shared/providers/line.provider");
-const { registerService } = require("../../services/liff.service");
+const { registerService } = require("../../services/register.service");
 const {
   welcomeNewUserFlex,
 } = require("../../../shared/templates/flex/modules/greeting.flex");
