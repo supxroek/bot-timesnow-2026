@@ -4,7 +4,7 @@ const mailConfig = require("../config/mail.config");
 const transporter = mailConfig.createTransporter();
 
 // ฟังก์ชันส่งอีเมล
-async function sendMail({ to, subject, text, html, from }) {
+async function sendMail({ to, subject, text, html, from, attachments }) {
   const fromAddress = `${mailConfig.fromName} <${mailConfig.fromAddress}>`;
   const mailOptions = {
     from: from || fromAddress, // ผู้ส่ง

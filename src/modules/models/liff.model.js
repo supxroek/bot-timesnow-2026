@@ -41,7 +41,45 @@ class Employee {
     );
     return rows[0];
   }
+  // นับจำนวนพนักงานในบริษัท
+  async countByCompanyId(companyId) {
+    const [rows] = await db.query(
+      "SELECT COUNT(*) as count FROM employees WHERE companyId = ? AND (resign_date IS NULL OR resign_date > CURDATE())",
+      [companyId]
+    );
+    return rows[0].count;
+  }
 
+  // ค้นหาสมาชิกด้วย CompanyId และ IDCard
+  async findByCompanyAndIdCard(companyId, idCard) {
+    const [rows] = await db.query(
+      "SELECT * FROM employees WHERE companyId = ? AND ID_or_Passport_Number = ?",
+      [companyId, idCard]
+    );
+    return rows[0];
+  }
+
+  // อัปเดตข้อมูลสมาชิก
+  async update(id, memberData) {
+    const { name, IDCard, companyId, lineUserId, start_date, resign_date } =
+      memberData;
+    const normalizedStart = normalizeToDate(start_date);
+
+    // Build query dynamically or just update all fields
+    const [rows] = await db.query(
+      "UPDATE employees SET name = ?, ID_or_Passport_Number = ?, companyId = ?, lineUserId = ?, start_date = ?, resign_date = ? WHERE id = ?",
+      [
+        name,
+        IDCard,
+        companyId,
+        lineUserId,
+        normalizedStart,
+        resign_date || null,
+        id,
+      ]
+    );
+    return rows;
+  }
   // สร้างสมาชิกใหม่
   async create(memberData) {
     const { name, IDCard, companyId, lineUserId, start_date } = memberData;
