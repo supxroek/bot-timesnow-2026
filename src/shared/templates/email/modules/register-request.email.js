@@ -29,11 +29,7 @@ const registerRequestEmail = ({ name, IDCard, start_date, approveLink }) => {
     <div class="btn-container">
         <a href="${approveLink}" class="btn">ตรวจสอบและอนุมัติ</a>
     </div>
-    
-    <p style="font-size: 14px; color: #888; text-align: center; margin-top: 20px;">
-        หากลิงก์ด้านบนไม่ทำงาน กรุณาคัดลอกและวาง URL นี้ในเบราว์เซอร์ของคุณ:<br>
-        <a href="${approveLink}" style="color: #0284c7; word-break: break-all;">${approveLink}</a>
-    </p>
+  
   `;
 
   return mainEmailLayout(content, "คำขอลงทะเบียนพนักงานใหม่ - Time Now");
