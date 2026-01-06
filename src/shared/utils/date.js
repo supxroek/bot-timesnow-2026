@@ -19,7 +19,7 @@ const DEFAULT_TZ = "Asia/Bangkok";
  *   จะตีความตามโซนเวลาของผู้ใช้ (DEFAULT_TZ) เพื่อให้วันที่ที่เก็บตรงกับวันที่ผู้ใช้เลือกใน UI
  *   จะส่งกลับค่า null หากค่า input เป็นค่าที่ไม่ถูกต้องหรือว่าง
  */
-function normalizeToDate(input) {
+function normalizeDate(input) {
   if (!input) return null;
   const asString = String(input).trim();
   // Quick match for YYYY-MM-DD
@@ -41,4 +41,36 @@ function formatDateThai(input) {
   return dayjs(input).format("D MMMM BBBB");
 }
 
-module.exports = { normalizeToDate, formatDateThai };
+/**
+ * ปกติค่า TIME จาก MySQL driver มักจะส่งกลับมาเป็น String "HH:mm:ss"
+ * แต่บางครั้งอาจมีการตั้งค่า driver ให้ส่งมาเป็น Object หรือต้องการ normalize format
+ * ฟังก์ชันนี้จะแปลงค่าให้เป็น String "HH:mm:ss" เสมอ
+ */
+function normalizeTime(input) {
+  if (!input) return null;
+
+  // กรณีค่าเป็น String "HH:mm:ss" หรือ "HH:mm"
+  if (typeof input === "string") {
+    // ถ้ามี format HH:mm:ss หรือ HH:mm
+    // ใช้ Regex ตรวจจับ pattern
+    const match = /^(\d{1,2}):(\d{2})(:(\d{2}))?$/.exec(input);
+    if (match) {
+      let [, h, m, , s] = match;
+      s = s || "00";
+      // padZero ให้เป็น 2 หลัก
+      return `${h.padStart(2, "0")}:${m}:${s}`;
+    }
+  }
+
+  // กรณีเป็น Date object (เช่น driver แปลงมาให้)
+  // หรือ string ที่ dayjs อ่านออก (เช่น full datetime string)
+  const d = dayjs(input);
+  if (d.isValid()) {
+    return d.format("HH:mm:ss");
+  }
+
+  // กรณีไม่สามารถแปลงได้ ส่งค่าเดิมกลับไป (หรืออาจจะ return null)
+  return input;
+}
+
+module.exports = { normalizeDate, formatDateThai, normalizeTime };

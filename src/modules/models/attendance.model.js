@@ -5,7 +5,7 @@
  */
 
 const db = require("../../shared/config/db.config");
-const { normalizeToDate } = require("../../shared/utils/date");
+const { normalizeDate } = require("../../shared/utils/date");
 
 // class สำหรับข้อมูลการลงเวลางาน
 class Attendance {

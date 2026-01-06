@@ -5,7 +5,7 @@
  */
 
 const db = require("../../shared/config/db.config");
-const { normalizeToDate } = require("../../shared/utils/date");
+const { normalizeDate } = require("../../shared/utils/date");
 
 // ============================================================
 // โมเดลสำหรับข้อมูลบริษัท
@@ -84,7 +84,7 @@ class Employee {
   async update(id, memberData) {
     const { name, IDCard, companyId, lineUserId, start_date, resign_date } =
       memberData;
-    const normalizedStart = normalizeToDate(start_date);
+    const normalizedStart = normalizeDate(start_date);
 
     // Build query dynamically or just update all fields
     const [rows] = await db.query(
@@ -107,7 +107,7 @@ class Employee {
     const { name, IDCard, companyId, lineUserId, start_date, departmentId } =
       memberData;
 
-    const normalizedStart = normalizeToDate(start_date);
+    const normalizedStart = normalizeDate(start_date);
     const [rows] = await db.query(
       "INSERT INTO employees (name, ID_or_Passport_Number, companyId, lineUserId, start_date, departmentId) VALUES (?, ?, ?, ?, ?, ?)",
       [
@@ -161,7 +161,7 @@ class Employee {
   // อัพเดทข้อมูลและ reactivate พนักงานที่ลาออก
   async reactivateEmployee(id, memberData) {
     const { name, IDCard, lineUserId, start_date } = memberData;
-    const normalizedStart = normalizeToDate(start_date);
+    const normalizedStart = normalizeDate(start_date);
 
     const [rows] = await db.query(
       "UPDATE employees SET name = ?, ID_or_Passport_Number = ?, lineUserId = ?, start_date = ?, resign_date = NULL WHERE id = ?",
