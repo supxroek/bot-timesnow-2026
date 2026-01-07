@@ -235,7 +235,7 @@ const registerService = async (userData) => {
     try {
       await mailProvider.sendMail({
         to: company.hr_email,
-        subject: `คำขอลงทะเบียนพนักงานใหม่: ${name}`,
+        subject: `[Time Now] คำขอลงทะเบียนพนักงานใหม่ - ${name}`,
         html: registerRequestEmail({ name, IDCard, start_date, approveLink }),
       });
     } catch (error_) {
