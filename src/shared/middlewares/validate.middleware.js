@@ -56,7 +56,9 @@ const authSchemas = {
 // ========================================
 const attendanceSchemas = {
   forgetTime: Joi.object({
-    timestamp_type: Joi.string()
+    lineUserId: Joi.string().max(100).optional(),
+    companyId: Joi.number().integer().positive().optional(),
+    type: Joi.string()
       .valid("work_in", "break_in", "ot_in", "work_out", "break_out", "ot_out")
       .required(),
     date: Joi.date().iso().required(),
@@ -64,7 +66,7 @@ const attendanceSchemas = {
       .pattern(/^([01]?\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/)
       .required(),
     reason: Joi.string().max(500).required(),
-    evidence: Joi.string().max(65535).allow("", null),
+    evidence: Joi.string().max(10485760).allow("", null),
   }),
 };
 

@@ -11,14 +11,21 @@ function buildBubble({
   contents = [],
   footerText = "",
 } = {}) {
+  const headerContents = [
+    atoms.logoCenter(logoUrl, "full", "10:2"),
+    atoms.titleText(title),
+  ];
+
+  if (subTitle?.text) {
+    headerContents.push(
+      atoms.subTitleText(subTitle.text, subTitle.color || "#1DB446")
+    );
+  }
+
   const header = {
     type: "box",
     layout: "vertical",
-    contents: [
-      atoms.logoCenter(logoUrl, "full", "10:2"),
-      atoms.titleText(title),
-      atoms.subTitleText(subTitle.text || "", subTitle.color || "#1DB446"),
-    ],
+    contents: headerContents,
     spacing: "sm",
     paddingBottom: "md",
   };
@@ -37,7 +44,9 @@ function buildBubble({
     contents: [
       {
         type: "text",
-        text: footerText || `Copyright © ${new Date().getFullYear() } Inverz Solutions Co., Ltd.`,
+        text:
+          footerText ||
+          `Copyright © ${new Date().getFullYear()} Inverz Solutions Co., Ltd.`,
         size: "xxs",
         color: "#8c8c8c",
         align: "center",

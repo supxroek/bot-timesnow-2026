@@ -53,6 +53,12 @@ class Employee {
     return rows[0];
   }
 
+  // ค้นหาสมาชิกโดยใช้ id
+  async findById(id) {
+    const [rows] = await db.query("SELECT * FROM employees WHERE id = ?", [id]);
+    return rows[0];
+  }
+
   // นับจำนวนพนักงานในบริษัท
   async countByCompanyId(companyId) {
     const [rows] = await db.query(

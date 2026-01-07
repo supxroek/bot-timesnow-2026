@@ -11,6 +11,11 @@ const {
   approveService,
   checkRegistrationStatusService,
 } = require("../services/register.service");
+const {
+  createRequest,
+  getRequestInfo,
+  processApproval: processApprovalRequest,
+} = require("../services/forgetRequest.service");
 const catchAsync = require("../../shared/utils/catchAsync");
 const AppError = require("../../shared/utils/AppError");
 
@@ -81,12 +86,46 @@ class LiffController {
 
   // ====================================================================
   // ฟังก์ชันสำหรับแจ้งลืมลงเวลางานผ่าน LIFF
-  forgetTime = catchAsync(async (req, res, _next) => {
-    const { userId, date, reason } = req.body;
-    if (!userId || !date || !reason) {
-      throw new AppError("ข้อมูลไม่ครบถ้วนสำหรับการแจ้งลืมลงเวลางาน", 400);
-    }
-    const result = await forgetTimeService({ userId, date, reason });
+  createForgetRequest = catchAsync(async (req, res, _next) => {
+    const { lineUserId, companyId, date, time, type, reason, evidence } =
+      req.body;
+
+    const result = await createRequest({
+      lineUserId,
+      companyId,
+      date,
+      time,
+      type,
+      reason,
+      evidence,
+    });
+
+    res.status(201).json({
+      status: "success",
+      data: result,
+    });
+  });
+
+  // ====================================================================
+  // ฟังก์ชันสำหรับดึงข้อมูลคำขอ (สำหรับหน้าอนุมัติ)
+  getForgetRequestInfo = catchAsync(async (req, res, _next) => {
+    const { token } = req.body;
+    if (!token) throw new AppError("Token is required", 400);
+
+    const result = await getRequestInfo(token);
+    res.status(200).json({
+      status: "success",
+      data: result,
+    });
+  });
+
+  // ====================================================================
+  // ฟังก์ชันสำหรับอนุมัติ/ปฏิเสธ คำขอ (สำหรับหน้าอนุมัติ)
+  approveForgetRequest = catchAsync(async (req, res, _next) => {
+    const { token, action, reason } = req.body;
+    if (!token) throw new AppError("Token is required", 400);
+
+    const result = await processApprovalRequest({ token, action, reason });
     res.status(200).json({
       status: "success",
       data: result,

@@ -2,7 +2,7 @@
 // Greeting module that composes Flex messages using base UI atoms and base layout
 
 const atoms = require("../components/base-ui");
-const base = require("../layouts/base-layout");
+const { buildBubble } = require("../layouts/base-layout");
 
 // small helper to render a bullet line with emoji and text
 function buildBullet(text, color) {
@@ -81,7 +81,7 @@ function pickExamples() {
 // =================================================================================
 // Generic greeting bubble
 function greetingFlex() {
-  const bubble = base.buildBubble({
+  const bubble = buildBubble({
     title: "สวัสดี 👋",
     subTitle: { text: "ยินดีต้อนรับสู่ Leave Hub", color: "#1DB446" },
     contents: [
@@ -152,7 +152,7 @@ function greetingFlex() {
 // =================================================================================
 // Welcome a newly registered user — show their name and basic instructions
 function welcomeNewUserFlex(name = "ผู้ใช้ใหม่") {
-  const bubble = base.buildBubble({
+  const bubble = buildBubble({
     title: "ยินดีต้อนรับ",
     subTitle: { text: `สวัสดี ${name}`, color: "#1DB446" },
     contents: [
@@ -207,7 +207,7 @@ function welcomeNewUserFlex(name = "ผู้ใช้ใหม่") {
 function unknownCommandFlex(cmd = "") {
   const examples = pickExamples();
 
-  const bubble = base.buildBubble({
+  const bubble = buildBubble({
     title: "ไม่พบคำสั่ง",
     subTitle: { text: "ขออภัย ระบบไม่เข้าใจคำสั่งนี้", color: "#888888" },
     contents: [

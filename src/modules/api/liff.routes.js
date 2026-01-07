@@ -36,12 +36,26 @@ router
     liffController.checkRegistrationStatus
   )
 
-  // endpoint to forget - สำหรับแจ้งลืมลงเวลางาน
+  // endpoint to forget - สร้างคำขอลืมลงเวลา
   .post(
-    "/forget-time",
+    "/forget-request",
     auth,
     validate(attendanceSchemas.forgetTime),
-    liffController.forgetTime
+    liffController.createForgetRequest
+  )
+
+  // endpoint to check forget request info - ตรวจสอบข้อมูลคำขอ (สำหรับหน้าอนุมัติ)
+  .post(
+    "/forget-request/info",
+    validate(authSchemas.checkStatus),
+    liffController.getForgetRequestInfo
+  )
+
+  // endpoint to approve forget request - อนุมัติคำขอ
+  .post(
+    "/forget-request/approve",
+    validate(authSchemas.approve),
+    liffController.approveForgetRequest
   )
 
   // endpoint to company - สำหรับดึงข้อมูลบริษัททั้งหมด

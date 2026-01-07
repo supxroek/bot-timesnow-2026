@@ -230,7 +230,7 @@ const registerService = async (userData) => {
 
   // 6. แจ้งเตือนคำขอลงทะเบียนผ่านอีเมล (HR, Admin) - ส่งลิงก์เดียว
   if (company.hr_email) {
-    const approveLink = `https://liff-timesnow-2024.web.app/pages/approve.html?token=${token}`;
+    const approveLink = `https://liff-timesnow-2024.web.app/approve-register?token=${token}`;
 
     try {
       await mailProvider.sendMail({
