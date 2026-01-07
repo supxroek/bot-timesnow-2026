@@ -26,7 +26,7 @@ const {
 } = require("../../shared/templates/flex/modules/forget-request.flex");
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const TOKEN_EXPIRY = "24h"; // ลิงก์อนุมัติมีอายุ 24 ชม.
+const TOKEN_EXPIRY = "30d"; // ลิงก์อนุมัติมีอายุ 30 วัน
 
 // ==============================================================
 //         ส่วนของ Utilities (Utilities)
@@ -154,11 +154,15 @@ const generateUniqueRequestId = async (datePart) => {
 const sendForgetRequestEmail = async (
   company,
   employee,
-  normalizedDate,
-  normalizedTime,
-  type,
-  reason,
-  requestId
+  {
+    normalizedDate,
+    normalizedTime,
+    type,
+    reason,
+    requestId,
+    originalTime,
+    evidence,
+  }
 ) => {
   if (!company) {
     console.warn(`Company not found when sending forget-request email.`);
@@ -169,7 +173,19 @@ const sendForgetRequestEmail = async (
     return;
   }
 
-  const token = jwt.sign({ requestId, action: "approve" }, JWT_SECRET, {
+  // สร้าง Token พร้อมฝังข้อมูลสำหรับแสดงผลหน้าเว็บ (Snapshot Data)
+  const tokenPayload = {
+    requestId,
+    action: "approve",
+    employeeName: employee.name,
+    date: formatDateThai(normalizedDate),
+    currentTime: originalTime,
+    time: normalizedTime.substring(0, 5),
+    type: mapTypeToText(type),
+    reason: reason || "-",
+  };
+
+  const token = jwt.sign(tokenPayload, JWT_SECRET, {
     expiresIn: TOKEN_EXPIRY,
   });
 
@@ -178,19 +194,31 @@ const sendForgetRequestEmail = async (
   const emailHtml = forgetRequestEmail({
     name: employee.name,
     department: employee.departmentId ? employee.departmentId : "-",
-    date: formatDateThai(normalizedDate),
-    time: normalizedTime.substring(0, 5),
-    type: mapTypeToText(type),
-    reason,
+    date: tokenPayload.date,
+    time: tokenPayload.time,
+    type: tokenPayload.type,
+    reason: tokenPayload.reason,
+    evidence, // ส่งหลักฐานไปที่อีเมล
     approveLink,
+    originalTime,
   });
 
   try {
-    await mailProvider.sendMail({
+    const mailOptions = {
       to: company.hr_email,
       subject: `[Time Now] คำขอลืมบันทึกเวลา - ${employee.name}`,
       html: emailHtml,
-    });
+    };
+
+    if (evidence) {
+      mailOptions.attachments = [
+        {
+          path: evidence, // Nodemailer รองรับ URL หรือ File Path
+        },
+      ];
+    }
+
+    await mailProvider.sendMail(mailOptions);
   } catch (err) {
     console.error("Failed to send forget-request email:", err);
   }
@@ -353,19 +381,38 @@ const createRequest = async ({
     status: "pending",
   });
 
-  // 5. ส่งอีเมลหา HR
+  // 5. หาเวลาเดิม (Snapshot Original Time) เพื่อแนบไปกับ Token และ Email
+  let originalTime = "-";
+  try {
+    const existingRecord = await TimestampRecord.findByEmployeeAndDate(
+      employee.id,
+      normalizedDate
+    );
+    if (existingRecord) {
+      // 1. ลองดึงตามประเภทก่อน (เช่น ขอแก้เวลาออก ก็ควรโชว์เวลาออกเดิม ถ้ามี)
+      const fieldName = mapTypeToField(type);
+      if (fieldName && existingRecord[fieldName]) {
+        originalTime = normalizeTime(existingRecord[fieldName]).substring(0, 5);
+      }
+      // ถ้าไม่มีค่าตามประเภท ก็ให้แสดงค่าว่าง
+    }
+  } catch (err) {
+    console.warn("Failed to fetch original time for snapshot:", err);
+  }
+
+  // 6. ส่งอีเมลหา HR
   const company = await Companies.findById(companyId);
-  await sendForgetRequestEmail(
-    company,
-    employee,
+  await sendForgetRequestEmail(company, employee, {
     normalizedDate,
     normalizedTime,
     type,
     reason,
-    requestId
-  );
+    requestId,
+    originalTime,
+    evidence,
+  });
 
-  // 6. ส่งแจ้งเตือน LINE ให้พนักงาน (Pending)
+  // 7. ส่งแจ้งเตือน LINE ให้พนักงาน (Pending)
   await sendPendingLineMessage(
     lineUserId,
     normalizedDate,
@@ -407,7 +454,11 @@ const getCurrentTime = async (employeeId, dateStr, timestampType) => {
   if (existingRecord) {
     const fieldName = mapTypeToField(timestampType);
     if (fieldName && existingRecord[fieldName]) {
-      return existingRecord[fieldName].substring(0, 5);
+      return normalizeTime(existingRecord[fieldName]).substring(0, 5);
+    }
+    // Fallback to start_time if specific field is empty
+    if (existingRecord.start_time) {
+      return normalizeTime(existingRecord.start_time).substring(0, 5);
     }
   }
   return "-";

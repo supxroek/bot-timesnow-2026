@@ -2,16 +2,29 @@ const db = require("../../shared/config/db.config");
 
 class TimestampRecord {
   // ค้นหา record โดย employeeId และ date
-  // ต้อง Join กับ workingTime เพราะ timestamp_records ไม่มี field date โดยตรง (อ้างอิง Schema)
+  // ปรับปรุง query ให้ยืดหยุ่นขึ้น โดยรองรับกรณีหาผ่าน workingTime ไม่เจอ ให้ดูที่ created_at ของ timestamp_records แทน (เฉพาะวันที่ตรงกัน)
   async findByEmployeeAndDate(employeeId, date, conn = null) {
     const sql = `
-      SELECT tr.*, wt.date
+      SELECT tr.*, wt.date as wt_date
       FROM timestamp_records tr
-      JOIN workingTime wt ON tr.workingTimeId = wt.id
-      WHERE tr.employeeid = ? AND wt.date = ?
+      LEFT JOIN workingTime wt ON tr.workingTimeId = wt.id
+      WHERE tr.employeeid = ? 
+      AND (
+        wt.date = ? 
+        OR wt.date LIKE ?
+        OR DATE(tr.created_at) = ?
+      )
+      ORDER BY tr.id DESC
+      LIMIT 1
     `;
     const executor = conn || db;
-    const [rows] = await executor.query(sql, [employeeId, date]);
+    const dateLike = date + "%";
+    const [rows] = await executor.query(sql, [
+      employeeId,
+      date,
+      dateLike,
+      date,
+    ]);
     return rows[0];
   }
 

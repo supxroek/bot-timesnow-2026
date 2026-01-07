@@ -9,6 +9,7 @@ const mainEmailLayout = require("../layouts/main-email");
  * @param {string} data.time เวลาที่ลืม (HH:mm)
  * @param {string} data.type ประเภท (เข้างาน/ออกงาน)
  * @param {string} data.reason เหตุผล
+ * @param {string} [data.evidence] หลักฐาน (URL)
  * @param {string} data.approveLink ลิงก์สำหรับอนุมัติ (มี token)
  * @returns {string} HTML Email
  */
@@ -19,7 +20,9 @@ const forgetRequestEmail = ({
   time,
   type,
   reason,
+  evidence,
   approveLink,
+  originalTime,
 }) => {
   const content = `
       <div style="text-align: center; margin-bottom: 20px;">
@@ -47,6 +50,12 @@ const forgetRequestEmail = ({
           <td style="padding: 8px 0; color: #333; font-weight: bold; font-size: 14px; text-align: right;">${type}</td>
         </tr>
         <tr>
+          <td style="padding: 8px 0; color: #666; font-size: 14px;">เวลาเดิม:</td>
+          <td style="padding: 8px 0; color: #333; font-weight: bold; font-size: 14px; text-align: right;">${
+            originalTime || "-"
+          }</td>
+        </tr>
+        <tr>
           <td style="padding: 8px 0; color: #666; font-size: 14px;">เวลาที่ระบุ:</td>
           <td style="padding: 8px 0; color: #333; font-weight: bold; font-size: 14px; text-align: right;">${time}</td>
         </tr>
@@ -57,11 +66,16 @@ const forgetRequestEmail = ({
       </table>
   
       <div style="text-align: center; margin-top: 30px;">
+        ${
+          evidence
+            ? `<p style="text-align: center; color: #dc3545; font-size: 14px; margin-bottom: 10px;">* โปรดตรวจสอบหลักฐานที่แนบมาด้วย ก่อนทำการอนุมัติ</p>`
+            : ""
+        }
         <a href="${approveLink}" style="background-color: #00B900; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 30px; font-weight: bold; display: inline-block; box-shadow: 0 4px 6px rgba(0, 185, 0, 0.2);">
           ตรวจสอบและอนุมัติ
         </a>
         <p style="margin-top: 20px; font-size: 12px; color: #999;">
-          ลิงก์นี้มีอายุการใช้งาน 24 ชั่วโมง
+          ลิงก์นี้มีอายุการใช้งาน 30 วัน
         </p>
       </div>
     `;
