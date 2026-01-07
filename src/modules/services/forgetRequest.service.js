@@ -376,17 +376,47 @@ const createRequest = async ({
   return { requestId };
 };
 
+// Helper: ดึงและตรวจสอบ Token รวมถึงจัดการกรณีหมดอายุ
+const getDecodedToken = async (token) => {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (err) {
+    if (err.name === "TokenExpiredError") {
+      const unsafeDecoded = jwt.decode(token);
+      if (unsafeDecoded?.requestId) {
+        const req = await ForgetRequest.findByRequestId(
+          unsafeDecoded.requestId
+        );
+        if (req && req.status !== "pending") {
+          return unsafeDecoded;
+        }
+      }
+      throw new AppError("ลิงก์อนุมัตินี้หมดอายุแล้ว", 400);
+    } else {
+      throw new AppError("Token ไม่ถูกต้อง", 400);
+    }
+  }
+};
+
+// Helper: ดึงข้อมูลเวลาเดิม
+const getCurrentTime = async (employeeId, dateStr, timestampType) => {
+  const existingRecord = await TimestampRecord.findByEmployeeAndDate(
+    employeeId,
+    dateStr
+  );
+  if (existingRecord) {
+    const fieldName = mapTypeToField(timestampType);
+    if (fieldName && existingRecord[fieldName]) {
+      return existingRecord[fieldName].substring(0, 5);
+    }
+  }
+  return "-";
+};
+
 // ============================================================
 // ฟังก์ชันสำหรับดึงข้อมูลคำขอจาก Token (สำหรับหน้าอนุมัติ)
 const getRequestInfo = async (token) => {
-  let decoded;
-  try {
-    decoded = jwt.verify(token, JWT_SECRET);
-  } catch (err) {
-    console.error(err);
-    throw new AppError("Token ไม่ถูกต้องหรือหมดอายุ", 400);
-  }
-
+  const decoded = await getDecodedToken(token);
   const { requestId } = decoded;
   const request = await ForgetRequest.findByRequestId(requestId);
 
@@ -394,18 +424,34 @@ const getRequestInfo = async (token) => {
     throw new AppError("ไม่พบข้อมูลคำขอ", 404);
   }
 
+  const isExpired = Date.now() >= decoded.exp * 1000;
+  if (request.status === "pending" && isExpired) {
+    throw new AppError("ลิงก์อนุมัตินี้หมดอายุแล้ว", 400);
+  }
+
   const employee = await Employee.findById(request.employee_id);
+  const dateStr =
+    typeof request.forget_date === "string"
+      ? request.forget_date
+      : request.forget_date.toISOString().split("T")[0];
+
+  const currentTime = await getCurrentTime(
+    request.employee_id,
+    dateStr,
+    request.timestamp_type
+  );
 
   return {
     id: request.id,
     requestId: request.request_id,
     employeeName: employee ? employee.name : "Unknown",
     date: formatDateThai(request.forget_date),
-    time: request.forget_time ? request.forget_time.substring(0, 5) : null,
+    time: request.forget_time ? request.forget_time.substring(0, 5) : "-",
     type: mapTypeToText(request.timestamp_type),
-    reason: request.reason,
+    reason: request.reason || "-",
     status: request.status,
     approved_at: request.approved_at || null,
+    currentTime,
   };
 };
 
