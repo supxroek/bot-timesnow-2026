@@ -305,6 +305,47 @@ const handleApproval = async (request, employee) => {
   }
 };
 
+// Helper: ดึงและตรวจสอบ Token รวมถึงจัดการกรณีหมดอายุ
+const getDecodedToken = async (token) => {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (err) {
+    if (err.name === "TokenExpiredError") {
+      const unsafeDecoded = jwt.decode(token);
+      if (unsafeDecoded?.requestId) {
+        const req = await ForgetRequest.findByRequestId(
+          unsafeDecoded.requestId
+        );
+        if (req && req.status !== "pending") {
+          return unsafeDecoded;
+        }
+      }
+      throw new AppError("ลิงก์อนุมัตินี้หมดอายุแล้ว", 400);
+    } else {
+      throw new AppError("Token ไม่ถูกต้อง", 400);
+    }
+  }
+};
+
+// Helper: ดึงข้อมูลเวลาเดิม
+const getCurrentTime = async (employeeId, dateStr, timestampType) => {
+  const existingRecord = await TimestampRecord.findByEmployeeAndDate(
+    employeeId,
+    dateStr
+  );
+  if (existingRecord) {
+    const fieldName = mapTypeToField(timestampType);
+    if (fieldName && existingRecord[fieldName]) {
+      return normalizeTime(existingRecord[fieldName]).substring(0, 5);
+    }
+    // Fallback to start_time if specific field is empty
+    if (existingRecord.start_time) {
+      return normalizeTime(existingRecord.start_time).substring(0, 5);
+    }
+  }
+  return "-";
+};
+
 // Helper: จัดการการปฏิเสธคำขอ
 const handleRejection = async (request, employee, reason) => {
   await ForgetRequest.updateStatus(request.id, "rejected");
@@ -421,47 +462,6 @@ const createRequest = async ({
   );
 
   return { requestId };
-};
-
-// Helper: ดึงและตรวจสอบ Token รวมถึงจัดการกรณีหมดอายุ
-const getDecodedToken = async (token) => {
-  try {
-    return jwt.verify(token, JWT_SECRET);
-  } catch (err) {
-    if (err.name === "TokenExpiredError") {
-      const unsafeDecoded = jwt.decode(token);
-      if (unsafeDecoded?.requestId) {
-        const req = await ForgetRequest.findByRequestId(
-          unsafeDecoded.requestId
-        );
-        if (req && req.status !== "pending") {
-          return unsafeDecoded;
-        }
-      }
-      throw new AppError("ลิงก์อนุมัตินี้หมดอายุแล้ว", 400);
-    } else {
-      throw new AppError("Token ไม่ถูกต้อง", 400);
-    }
-  }
-};
-
-// Helper: ดึงข้อมูลเวลาเดิม
-const getCurrentTime = async (employeeId, dateStr, timestampType) => {
-  const existingRecord = await TimestampRecord.findByEmployeeAndDate(
-    employeeId,
-    dateStr
-  );
-  if (existingRecord) {
-    const fieldName = mapTypeToField(timestampType);
-    if (fieldName && existingRecord[fieldName]) {
-      return normalizeTime(existingRecord[fieldName]).substring(0, 5);
-    }
-    // Fallback to start_time if specific field is empty
-    if (existingRecord.start_time) {
-      return normalizeTime(existingRecord.start_time).substring(0, 5);
-    }
-  }
-  return "-";
 };
 
 // ============================================================
