@@ -45,6 +45,19 @@ class ForgetRequest {
     return rows[0];
   }
 
+  // ค้นหาคำร้องที่รออนุมัติโดย employeeId และช่วงเวลา
+  async findPendingByEmployeeAndRange(employeeId, startDate, endDate) {
+    const sql = `
+      SELECT * 
+      FROM forget_timestamp_requests 
+      WHERE employee_id = ? 
+      AND status = 'pending'
+      AND forget_date BETWEEN ? AND ?
+    `;
+    const [rows] = await db.query(sql, [employeeId, startDate, endDate]);
+    return rows;
+  }
+
   // ค้นหาคำร้องด้วย request_id
   async findByRequestId(requestId) {
     const [rows] = await db.query(

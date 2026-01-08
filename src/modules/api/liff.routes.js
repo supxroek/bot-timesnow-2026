@@ -44,6 +44,14 @@ router
     liffController.createForgetRequest
   )
 
+  // endpoint to get missing timestamps
+  .post(
+    "/forget-request/missing",
+    auth,
+    // validate(authSchemas.checkStatus), // อาจจะต้องมี validation schema ใหม่ หรือใช้ checkStatus ถ้าแค่ check token/lineUserId
+    liffController.getMissingTimestamps
+  )
+
   // endpoint to check forget request info - ตรวจสอบข้อมูลคำขอ (สำหรับหน้าอนุมัติ)
   .post(
     "/forget-request/info",

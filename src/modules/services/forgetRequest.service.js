@@ -522,8 +522,99 @@ const processApproval = async ({ token, action, reason }) => {
   return { status: "success", action };
 };
 
+// ============================================================
+// ฟังก์ชันสำหรับสแกนหาการลืมลงเวลาย้อนหลัง 30 วัน
+const scanMissingTimestamps = async (lineUserId) => {
+  // 1. ตรวจสอบพนักงาน
+  const employee = await Employee.findByLineUserId(lineUserId);
+  if (!employee) throw new AppError("ไม่พบข้อมูลพนักงาน", 404);
+
+  // 2. กำหนดช่วงเวลา 30 วันย้อนหลัง
+  const today = new Date();
+  const endDate = today.toISOString().split("T")[0]; // วันปัจจุบัน
+
+  const pastDate = new Date();
+  pastDate.setDate(today.getDate() - 30);
+  const startDate = pastDate.toISOString().split("T")[0];
+
+  // 3. ดึงข้อมูล (Parallel Execution)
+  const [records, pendingRequests] = await Promise.all([
+    TimestampRecord.findByEmployeeAndDateRange(employee.id, startDate, endDate),
+    ForgetRequest.findPendingByEmployeeAndRange(
+      employee.id,
+      startDate,
+      endDate
+    ),
+  ]);
+
+  const missingItems = [];
+
+  // สร้าง Map ของ Pending Requests เพื่อเช็คได้เร็ว O(1)
+  // Key format: "YYYY-MM-DD_type"
+  const pendingMap = new Set();
+  pendingRequests.forEach((req) => {
+    // use raw date string from DB or normalize
+    const d =
+      typeof req.forget_date === "string"
+        ? req.forget_date
+        : req.forget_date.toISOString().split("T")[0];
+    pendingMap.add(`${d}_${req.timestamp_type}`);
+  });
+
+  // Helper: Get checks for a record
+  const getChecks = (record) => {
+    let checks = [
+      { type: "work_in", value: record.start_time },
+      { type: "work_out", value: record.end_time },
+    ];
+
+    if (record.free_time != 1) {
+      checks.push(
+        { type: "break_in", value: record.break_start_time },
+        { type: "break_out", value: record.break_end_time }
+      );
+    }
+
+    if (record.otStatus == 1) {
+      checks.push(
+        { type: "ot_in", value: record.ot_start_time },
+        { type: "ot_out", value: record.ot_end_time }
+      );
+    }
+
+    return checks;
+  };
+
+  // 4. ตรวจสอบเงื่อนไข
+  for (const record of records) {
+    const dateStr =
+      typeof record.date === "string"
+        ? record.date
+        : record.date.toISOString().split("T")[0];
+
+    const checks = getChecks(record);
+
+    for (const check of checks) {
+      if (!check.value) {
+        const key = `${dateStr}_${check.type}`;
+        const status = pendingMap.has(key) ? "pending" : "missing";
+
+        missingItems.push({
+          date: dateStr,
+          type: check.type,
+          typeText: mapTypeToText(check.type),
+          status: status,
+        });
+      }
+    }
+  }
+
+  return missingItems;
+};
+
 module.exports = {
   createRequest,
   getRequestInfo,
   processApproval,
+  scanMissingTimestamps,
 };

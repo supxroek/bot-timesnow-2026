@@ -15,6 +15,7 @@ const {
   createRequest,
   getRequestInfo,
   processApproval: processApprovalRequest,
+  scanMissingTimestamps,
 } = require("../services/forgetRequest.service");
 const catchAsync = require("../../shared/utils/catchAsync");
 const AppError = require("../../shared/utils/AppError");
@@ -101,6 +102,21 @@ class LiffController {
     });
 
     res.status(201).json({
+      status: "success",
+      data: result,
+    });
+  });
+
+  // ====================================================================
+  // ฟังก์ชันสแกนหาการลืมบันทึกเวลา
+  getMissingTimestamps = catchAsync(async (req, res, _next) => {
+    const { lineUserId } = req.body;
+    if (!lineUserId) {
+      throw new AppError("Line User ID is required", 400);
+    }
+    const result = await scanMissingTimestamps(lineUserId);
+
+    res.status(200).json({
       status: "success",
       data: result,
     });

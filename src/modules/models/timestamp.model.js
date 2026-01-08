@@ -28,6 +28,36 @@ class TimestampRecord {
     return rows[0];
   }
 
+  // ค้นหา record โดย employeeId และช่วงเวลา (สำหรับ Scanner Scanner)
+  async findByEmployeeAndDateRange(
+    employeeId,
+    startDate,
+    endDate,
+    conn = null
+  ) {
+    const sql = `
+      SELECT 
+        wt.date,
+        wt.free_time,
+        tr.otStatus,
+        tr.start_time,
+        tr.end_time,
+        tr.break_start_time,
+        tr.break_end_time,
+        tr.ot_start_time,
+        tr.ot_end_time,
+        tr.created_at
+      FROM workingTime wt
+      LEFT JOIN timestamp_records tr ON wt.id = tr.workingTimeId
+      WHERE wt.employeeId = ?
+      AND wt.date BETWEEN ? AND ?
+      ORDER BY wt.date ASC
+    `;
+    const executor = conn || db;
+    const [rows] = await executor.query(sql, [employeeId, startDate, endDate]);
+    return rows;
+  }
+
   // สร้าง workingTime (ตารางแม่)
   async createWorkingTime(
     { companyId, employeeId, date, month, free_time = 0 },
