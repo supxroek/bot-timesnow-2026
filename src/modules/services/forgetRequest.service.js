@@ -66,12 +66,10 @@ const updateTimestampFromRequest = async (request, conn = null) => {
   const { employee_id, company_id, timestamp_type, forget_date, forget_time } =
     request;
 
-  // Find existing record for this date
-  // Note: forget_date is Date object or string 'YYYY-MM-DD'
-  const dateStr =
-    typeof forget_date === "string"
-      ? forget_date
-      : forget_date.toISOString().split("T")[0];
+  // ค้นหาบันทึกที่มีอยู่สำหรับวันที่นี้
+  // หมายเหตุ: forget_date คือวัตถุ Date หรือสตริง 'YYYY-MM-DD'
+  // ทำการปรับวันที่ให้เป็นรูปแบบมาตรฐานโดยใช้ utility ที่ใช้ร่วมกัน เพื่อหลีกเลี่ยงการผิดพลาดจากโซนเวลา
+  const dateStr = normalizeDate(forget_date);
 
   let record = await TimestampRecord.findByEmployeeAndDate(
     employee_id,
@@ -481,10 +479,8 @@ const getRequestInfo = async (token) => {
   }
 
   const employee = await Employee.findById(request.employee_id);
-  const dateStr =
-    typeof request.forget_date === "string"
-      ? request.forget_date
-      : request.forget_date.toISOString().split("T")[0];
+  // Ensure date string is normalized (handles Date objects returned by DB)
+  const dateStr = normalizeDate(request.forget_date);
 
   const currentTime = await getCurrentTime(
     request.employee_id,
@@ -531,11 +527,11 @@ const scanMissingTimestamps = async (lineUserId) => {
 
   // 2. กำหนดช่วงเวลา 30 วันย้อนหลัง
   const today = new Date();
-  const endDate = today.toISOString().split("T")[0]; // วันปัจจุบัน
+  const endDate = normalizeDate(today); // วันปัจจุบัน (normalized to DEFAULT_TZ)
 
   const pastDate = new Date();
   pastDate.setDate(today.getDate() - 30);
-  const startDate = pastDate.toISOString().split("T")[0];
+  const startDate = normalizeDate(pastDate);
 
   // 3. ดึงข้อมูล (Parallel Execution)
   const [records, pendingRequests] = await Promise.all([
@@ -553,11 +549,7 @@ const scanMissingTimestamps = async (lineUserId) => {
   // Key format: "YYYY-MM-DD_type"
   const pendingMap = new Set();
   pendingRequests.forEach((req) => {
-    // use raw date string from DB or normalize
-    const d =
-      typeof req.forget_date === "string"
-        ? req.forget_date
-        : req.forget_date.toISOString().split("T")[0];
+    const d = normalizeDate(req.forget_date);
     pendingMap.add(`${d}_${req.timestamp_type}`);
   });
 
@@ -587,10 +579,7 @@ const scanMissingTimestamps = async (lineUserId) => {
 
   // 4. ตรวจสอบเงื่อนไข
   for (const record of records) {
-    const dateStr =
-      typeof record.date === "string"
-        ? record.date
-        : record.date.toISOString().split("T")[0];
+    const dateStr = normalizeDate(record.date);
 
     const checks = getChecks(record);
 
