@@ -1,205 +1,179 @@
-// src/modules/webhook/handlers/events.handler.js
+// src/modules/webhook/events.handler.js
 
-// import providers
+// Import providers
 const lineProvider = require("../../shared/providers/line.provider");
-const { Employee } = require("../models/employee.model");
+const AttendanceCommand = require("./commands/attendance.command");
+const BeaconCommand = require("./commands/beacon.command");
 const {
   greetingFlex,
   welcomeNewUserFlex,
   unknownCommandFlex,
 } = require("../../shared/templates/flex/modules/greeting.flex");
 
-// intents keywords
-const INTENTS = {
-  // General greetings and common phrases - สำหรับคำทักทายทั่วไปและวลีที่ใช้บ่อย
-  GREETING: ["hello", "hi", "hey", "สวัสดี", "หวัดดี", "ดีจ้า", "ดีครับ"],
-  HELP: ["help", "support", "ช่วยเหลือ", "ช่วยด้วย"],
-  THANKS: ["thank", "thanks", "appreciate", "ขอบคุณ", "ขอบใจ"],
-
-  // Specific service inquiries - สำหรับการสอบถามบริการเฉพาะ
-  REGISTERATION: ["register", "sign up", "สมัคร", "ลงทะเบียน"],
-  ATTENDANCE_IN: ["check in", "attendance in", "เช็คอิน", "ลงชื่อเข้าใช้", "เข้างาน", "บันทึกเวลางาน", "ลงเวลาทำงาน"],
-  ATTENDANCE_OUT: ["check out", "attendance out", "เช็คเอาท์", "ลงชื่อออก", "ออกงาน", "บันทึกเวลาออกงาน"],
-  FORGOT_ATTENDANCE: ["forgot attendance", "ลืมบันทึกเวลา", "ลืมเช็คอิน", "ลืมเช็คเอาท์"],
-  WORK_CALCULATION: ["work hours", "calculate work", "คำนวณชั่วโมงทำงาน", "คำนวณเวลางาน"],
-};
-
-// คลาสสำหรับจัดการ events ต่าง ๆ
-class EventsHandler {
-  // ฟังก์ชันตรวจสอบเจตนา (intent) จากข้อความ
-  detectIntent(text) {
-    const lowerText = text.toLowerCase();
-    for (const [intent, keywords] of Object.entries(INTENTS)) {
-      for (const keyword of keywords) {
-        if (lowerText.includes(keyword)) {
-          return intent;
-        }
-      }
-    }
-    return null; // หากไม่พบเจตนาใด ๆ
-  }
-
-  // ฟังก์ชันสำหรับตอบกลับหรือส่งข้อความ (reply or push)
-  async replyOrPush(event, messages) {
-    const { replyToken, source } = event;
-    try {
-      // ตรวจสอบว่า replyToken ถูกต้องหรือไม่
-      if (replyToken && replyToken !== "00000000000000000000000000000000") {
-        await lineProvider.reply(replyToken, messages);
-      } else if (source?.userId) {
-        // เพิ่ม fallback เป็นการส่งข้อความแบบ push หาก replyToken ไม่ถูกต้อง
-        console.log("ReplyToken ไม่ถูกต้อง, กำลังส่งข้อความแบบ push แทน...");
-        await lineProvider.push(source.userId, messages);
-      } else {
-        console.warn(
-          "Cannot send message: Missing both replyToken and userId."
-        );
-      }
-    } catch (error) {
-      console.error("Error in replyOrPush:", error.message);
-    }
-  }
-
-  // ฟังก์ชันตรวจสอบสถานะสมาชิก (เช็คว่าผู้ใช้เป็นสมาชิกหรือไม่ หากเป็นสมาชิกให้เพิ่ม Rich Menu สมาชิกให้ และหากไม่ใช่ให้ลบ Rich Menu สมาชิก)
-  async checkMemberStatus(source) {
-    if (!source?.userId) return;
-    const member = await Employee.findActiveByLineUserId({
-      where: { userId: source.userId },
-    });
-    if (member) {
-      // หากเป็นสมาชิกที่ยังใช้งานอยู่ ให้ Link Rich Menu สำหรับสมาชิก
-      try {
-        await lineProvider.linkRichMenu(
-          source.userId,
-          "richmenu-30b97e17ac5d13d9cbe70bd9a0a04722"
-        );
-        console.log(
-          `เชื่อมต่อ Rich Menu สำหรับสมาชิกกับผู้ใช้ ${source.userId} เรียบร้อยแล้ว`
-        );
-      } catch (error) {
-        console.error(
-          `ไม่สามารถเชื่อมต่อ Rich Menu กับผู้ใช้ ${source.userId} ได้:`,
-          error
-        );
-      }
-    } else {
-      // หากไม่ใช่สมาชิกที่ยังใช้งานอยู่ ให้ Unlink Rich Menu สำหรับสมาชิก
-      try {
-        await lineProvider.unlinkRichMenu(source.userId);
-        console.log(
-          `ยกเลิกการเชื่อมต่อ Rich Menu สำหรับสมาชิกกับผู้ใช้ ${source.userId} เรียบร้อยแล้ว`
-        );
-      } catch (error) {
-        console.error(
-          `ไม่สามารถยกเลิกการเชื่อมต่อ Rich Menu กับผู้ใช้ ${source.userId} ได้:`,
-          error
-        );
-      }
-    }
-  }
-
-  // ฟังก์ชันจัดการข้อความประเภท text
-  async handleTextMessage(event) {
-    const { message } = event;
-    const text = message.text;
-    const intent = this.detectIntent(text);
-    const responses = {
-      GREETING: greetingFlex(),
-      HELP: {
+// ============================================================
+// Intents Configuration
+// ============================================================
+const INTENT_HANDLERS = {
+  GREETING: {
+    keywords: ["hello", "hi", "hey", "สวัสดี", "หวัดดี", "ดีจ้า", "ดีครับ"],
+    execute: async (event) => lineProvider.replyOrPush(event, greetingFlex()),
+  },
+  HELP: {
+    keywords: ["help", "support", "ช่วยเหลือ", "ช่วยด้วย"],
+    execute: async (event) =>
+      lineProvider.replyOrPush(event, {
         type: "text",
         text: "แน่นอนครับ/ค่ะ! ฉันสามารถช่วยอะไรคุณได้บ้างวันนี้?",
-      },
-      THANKS: {
+      }),
+  },
+  THANKS: {
+    keywords: ["thank", "thanks", "appreciate", "ขอบคุณ", "ขอบใจ"],
+    execute: async (event) =>
+      lineProvider.replyOrPush(event, {
         type: "text",
         text: "ยินดีครับ/ค่ะ! 😊",
-      },
-      REGISTERATION: {
+      }),
+  },
+  REGISTRATION: {
+    keywords: ["register", "sign up", "สมัคร", "ลงทะเบียน"],
+    execute: async (event) =>
+      lineProvider.replyOrPush(event, {
         type: "text",
         text: "หากต้องการลงทะเบียน กรุณาเยี่ยมชมหน้าลงทะเบียนของเราที่ [ลิงก์]",
-      },
-      ATTENDANCE_IN: {
-        type: "text",
-        text: "คุณสามารถเช็คอินโดยใช้ระบบหรืแอปพลิเคชันบันทึกเวลาทำงานของเราได้ครับ/ค่ะ",
-      },
-      ATTENDANCE_OUT: {
-        type: "text",
-        text: "คุณสามารถเช็คเอาท์โดยใช้ระบบเดียวกับที่ใช้เช็คอินได้ครับ/ค่ะ",
-      },
-      FORGOT_ATTENDANCE: {
+      }),
+  },
+  ATTENDANCE: {
+    keywords: [
+      "ot in","check in","break in","break out","check out","ot out",
+      "เช็คอิน","เข้างาน","บันทึกเวลา",
+      "พักเบรค","พักเที่ยง","พักเบรคเสร็จ",
+      "เช็คเอาท์","เลิกงาน",
+      "เข้างานล่วงเวลา","ออกงานล่วงเวลา","OT เข้า","OT ออก",
+    ],
+    execute: async (event) => AttendanceCommand.handle(event),
+  },
+  FORGOT_ATTENDANCE: {
+    keywords: [
+      "forgot attendance","ลืมบันทึกเวลา","ลืมเช็คอิน","ลืมเช็คเอาท์",
+    ],
+    execute: async (event) =>
+      lineProvider.replyOrPush(event, {
         type: "text",
         text: "หากคุณลืมบันทึกเวลาทำงาน กรุณาติดต่อฝ่ายบุคคลเพื่อขอความช่วยเหลือครับ/ค่ะ",
-      },
-      WORK_CALCULATION: {
+      }),
+  },
+  WORK_CALCULATION: {
+    keywords: [
+      "work hours","calculate work","คำนวณชั่วโมงทำงาน","คำนวณเวลางาน",
+    ],
+    execute: async (event) =>
+      lineProvider.replyOrPush(event, {
         type: "text",
         text: "คุณสามารถคำนวณชั่วโมงทำงานของคุณได้โดยใช้เครื่องมือคำนวณออนไลน์ของเราที่ [ลิงก์]",
-      },
-    };
-    const replyMessage = responses[intent] || unknownCommandFlex(text);
-    if (replyMessage) {
-      await this.replyOrPush(event, replyMessage);
-    }
-  }
+      }),
+  },
+};
 
-  // ฟังก์ชันจัดการ events สำหรับ message
+// ============================================================
+// EventsHandler Class
+// ============================================================
+class EventsHandler {
+  /**
+   * Main entry point for message events
+   * @param {Object} event
+   */
+  // ===========================================================
+  // ฟังก์ชันสำหรับจัดการข้อความประเภทข้อความ
   async handleMessage(event) {
     const { message, source } = event;
 
-    // แสดง Loading Animation และตรวจสอบสถานะสมาชิก
+    // การเตรียมข้อมูลล่วงหน้า: แสดงการโหลดและตรวจสอบสถานะสมาชิก
     if (source?.userId) {
       await lineProvider.showLoadingAnimation(source.userId);
-      await this.checkMemberStatus(source);
+      await lineProvider.checkMemberStatus(source);
     }
 
-    if (message.type === "text") {
-      await this.handleTextMessage(event);
-    } else if (message.type === "sticker") {
-      await this.replyOrPush(event, {
-        type: "text",
-        text: "ขอบคุณสำหรับสติกเกอร์นะครับ/ค่ะ! 😊",
-      });
-    } else {
-      await this.replyOrPush(event, {
-        type: "text",
-        text: "ขออภัยครับ/ค่ะ ตอนนี้ฉันสามารถจัดการข้อความประเภทข้อความเท่านั้น",
-      });
+    // ตัวจัดการตามประเภทข้อความ
+    switch (message.type) {
+      case "text":
+        // จัดการข้อความประเภทข้อความ
+        await this._handleTextMessage(event);
+        break;
+      case "sticker":
+        await lineProvider.replyOrPush(event, {
+          type: "text",
+          text: "ขอบคุณสำหรับสติกเกอร์นะครับ/ค่ะ! 😊",
+        });
+        break;
+      default:
+        await lineProvider.replyOrPush(event, {
+          type: "text",
+          text: "ขออภัยครับ/ค่ะ ตอนนี้ฉันสามารถจัดการข้อความประเภทข้อความเท่านั้น",
+        });
     }
   }
 
-  // ฟังก์ชันจัดการ events สำหรับ follow
+  /**
+   * Handle Follow event (Block/Unblock)
+   * @param {Object} event
+   */
+  // ===========================================================
+  // ฟังก์ชันสำหรับจัดการเหตุการณ์ติดตาม (Follow)
   async handleFollow(event) {
     const { source } = event;
     try {
-      await this.replyOrPush(event, welcomeNewUserFlex());
+      // ส่งข้อความต้อนรับผู้ใช้ใหม่
+      await lineProvider.replyOrPush(event, welcomeNewUserFlex());
     } catch (error) {
       console.error("Failed to send flex message:", error.message);
-      const textWelcomeMessage = {
+      await lineProvider.replyOrPush(event, {
         type: "text",
         text: `ยินดีต้อนรับ ${
           source.userId ? "ผู้ใช้ที่รัก" : "ทุกคน"
         }! ขอบคุณที่ติดตามบอทของเรา พิมพ์ 'สวัสดี' เพื่อเริ่มต้นการสนทนา!`,
-      };
-      await this.replyOrPush(event, textWelcomeMessage);
+      });
     }
   }
 
-  // ฟังก์ชันจัดการ events สำหรับ beacon
+  /**
+   * Handle Beacon event
+   * @param {Object} event
+   */
+  // ===========================================================
+  // ฟังก์ชันสำหรับจัดการเหตุการณ์บีคอน (Beacon)
   async handleBeacon(event) {
-    const { beacon } = event;
+    // ใช้ BeaconCommand ในการจัดการเหตุการณ์บีคอน
+    await BeaconCommand.handle(event);
+  }
 
-    // Log beacon information
-    console.log("Beacon event received:", {
-      type: beacon.type,
-      hwid: beacon.hwid,
-      deviceMessage: beacon.deviceMessage,
-    });
+  // ----------------------------------------------------------------
+  // Private Helper Methods
+  // ----------------------------------------------------------------
 
-    // Reply to acknowledge beacon detection
-    const replyMessage = {
-      type: "text",
-      text: `Beacon detected! Type: ${beacon.type}, HWID: ${beacon.hwid}`,
-    };
+  // ฟังก์ชันสำหรับจัดการข้อความประเภทข้อความ
+  async _handleTextMessage(event) {
+    const text = event.message.text;
+    const handler = this._matchIntent(text);
 
-    await this.replyOrPush(event, replyMessage);
+    if (handler) {
+      await handler.execute(event);
+    } else {
+      // กรณีไม่พบเจตนา (intent) ที่ตรงกัน
+      await lineProvider.replyOrPush(event, unknownCommandFlex(text));
+    }
+  }
+
+  // ฟังก์ชันสำหรับจับคู่ข้อความกับเจตนา (intent) ที่กำหนดไว้
+  _matchIntent(text) {
+    const lowerText = text.toLowerCase();
+    // วนลูปผ่านเจตนา (intent) ทั้งหมดเพื่อหาคำที่ตรงกัน
+    for (const key in INTENT_HANDLERS) {
+      const intent = INTENT_HANDLERS[key];
+      if (intent.keywords.some((keyword) => lowerText.includes(keyword))) {
+        return intent;
+      }
+    }
+    return null;
   }
 }
 

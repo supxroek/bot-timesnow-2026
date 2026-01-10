@@ -17,9 +17,12 @@ class Webhook {
           case "follow":
             await eventHandlers.handleFollow(event);
             break;
-          // case "beacon":
-          //   await eventHandlers.handleBeacon(event);
-          //   break;
+          case "beacon":
+            await eventHandlers.handleBeacon(event);
+            break;
+          case "postback":
+            // handle postback if needed in future
+            break;
           default:
             console.log("Unhandled event type:", event.type);
         }
