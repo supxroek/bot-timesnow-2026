@@ -120,4 +120,4 @@ class TimestampRecord {
   }
 }
 
-module.exports = { TimestampRecord: new TimestampRecord() };
+module.exports = new TimestampRecord();

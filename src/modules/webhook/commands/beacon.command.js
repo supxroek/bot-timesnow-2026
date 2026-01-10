@@ -17,17 +17,23 @@ class BeaconCommand {
       userId: source.userId,
     });
 
-    // อัพเดตสถานะบีคอนและตรวจสอบการทริกเกอร์
+    // 1. Every Event Matters: enter, stay, banner
+    // จัดการทุกสถานะเพื่อให้แน่ใจว่าข้อมูลล่าสุดถูก Cache เสมอ (Heartbeat Update)
     if (["enter", "banner", "stay"].includes(beacon.type)) {
       console.log(
         `Updating beacon state for ${source.userId} with HWID ${beacon.hwid}`
       );
 
-      // เรียกใช้บริการอัพเดตสถานะบีคอน
+      // ตรวจสอบสถานะก่อนอัปเดต เพื่อใช้ตัดสินใจ Proactive Trigger
+      // หากไม่มีข้อมูลใน Cache มาก่อน แสดงว่าเป็น Session ใหม่ (เพิ่งเดินเข้ามาหรือขาดช่วงไปนาน)
+      const isNewSession = !AttendanceService.beaconState.has(source.userId);
+
+      // เรียกใช้บริการอัพเดตสถานะบีคอน (Update Heartbeat)
       AttendanceService.updateBeaconState(source.userId, beacon.hwid);
 
-      // หากเป็นการเข้าสู่บีคอน (enter) ให้ตรวจสอบทริกเกอร์
-      if (beacon.type === "enter") {
+      // 2. Proactive Trigger
+      // ทำงานเมื่อเป็น enter หรือ stay และเป็น Session ใหม่เท่านั้น
+      if ((beacon.type === "enter" || beacon.type === "stay") && isNewSession) {
         // ตรวจสอบว่ามีทริกเกอร์ที่ตรงกับบีคอนนี้หรือไม่
         const trigger = await AttendanceService.validateBeaconTrigger(
           source.userId,

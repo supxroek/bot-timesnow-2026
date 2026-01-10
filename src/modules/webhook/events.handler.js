@@ -62,6 +62,12 @@ const INTENT_HANDLERS = {
         text: "หากคุณลืมบันทึกเวลาทำงาน กรุณาติดต่อฝ่ายบุคคลเพื่อขอความช่วยเหลือครับ/ค่ะ",
       }),
   },
+  STATUS_TODAY: {
+    keywords: [
+      "status","สถานะ","วันนี้","summary","เช็คเวลา","ประวัติการลงเวลา","ดูเวลา",
+    ],
+    execute: async (event) => AttendanceCommand.statusToday(event),
+  },
   WORK_CALCULATION: {
     keywords: [
       "work hours","calculate work","คำนวณชั่วโมงทำงาน","คำนวณเวลางาน",

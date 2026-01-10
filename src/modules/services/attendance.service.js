@@ -5,11 +5,14 @@ dayjs.extend(duration);
 dayjs.extend(isBetween);
 
 const { normalizeDate, normalizeTime } = require("../../shared/utils/date");
-const DevIOModel = require("../models/devIO.model");
 const { Employee } = require("../models/employee.model");
+const DevIOModel = require("../models/devIO.model");
 const WorkingTimeModel = require("../models/workingTime.model");
-const { TimestampRecord } = require("../models/timestamp.model");
+const TimestampRecord = require("../models/timestamp.model");
 const lineProvider = require("../../shared/providers/line.provider");
+const {
+  attendanceSuccessMessage,
+} = require("../../shared/templates/flex/modules/attendance.flex");
 
 class AttendanceService {
   constructor() {
@@ -149,6 +152,13 @@ class AttendanceService {
           status: "info",
           message: "No action needed",
           detail: action.reason,
+          // ส่งข้อมูลกลับไปเพื่อใช้สร้าง Summary Flex
+          data: {
+            timestamp: timestamp,
+            workingTime: workingTime,
+            date: todayStr,
+            latestAction: this.getLastRecordedAction(timestamp),
+          },
         };
       }
 
@@ -166,9 +176,13 @@ class AttendanceService {
         });
       }
 
-      // 8. แจ้งเตือนผู้ใช้เมื่อสำเร็จ
-      const message = `บันทึกเวลาสำเร็จ: ${action.label} เวลา ${currentTimeStr}`;
-      await lineProvider.push(lineUserId, { type: "text", text: message });
+      // 8. แจ้งเตือนผู้ใช้เมื่อสำเร็จด้วย Flex Message
+      const flexMessage = attendanceSuccessMessage({
+        actionLabel: action.label,
+        time: currentTimeStr,
+        date: todayStr,
+      });
+      await lineProvider.push(lineUserId, flexMessage);
 
       return { status: "success", action: action.label, time: currentTimeStr };
     } catch (error) {
@@ -291,6 +305,25 @@ class AttendanceService {
   getTargetTimeForAction(wt, field) {
     if (!wt) return null;
     return wt[field];
+  }
+
+  getLastRecordedAction(timestamp) {
+    if (!timestamp) return null;
+    const priority = [
+      { field: "ot_end_time", label: "OT ออก" },
+      { field: "ot_start_time", label: "OT เข้า" },
+      { field: "end_time", label: "เลิกงาน" },
+      { field: "break_end_time", label: "เข้างาน(บ่าย)" },
+      { field: "break_start_time", label: "เริ่มพัก" },
+      { field: "start_time", label: "เข้างาน" },
+    ];
+
+    for (const item of priority) {
+      if (timestamp[item.field]) {
+        return { label: item.label, time: timestamp[item.field] };
+      }
+    }
+    return null;
   }
 
   // =========================================================================
@@ -448,6 +481,38 @@ class AttendanceService {
       return { type: "UPDATE", field: "end_time", label: "เลิกงาน" };
     }
     return { type: "UPDATE", field: "end_time", label: "เลิกงาน(อัปเดต)" };
+  }
+
+  // =========================================================================
+  // 6. Data Retrieval for Summary
+  // =========================================================================
+
+  async getDailySummary(lineUserId) {
+    try {
+      const employee = await Employee.findActiveByLineUserId({
+        where: { userId: lineUserId },
+      });
+      if (!employee) return null;
+
+      const now = dayjs();
+      const todayStr = normalizeDate(now.toISOString());
+
+      const workingTime = await WorkingTimeModel.findByEmployeeAndDate(
+        employee.id,
+        employee.companyId,
+        todayStr
+      );
+
+      const timestamp = await TimestampRecord.findByEmployeeAndDate(
+        employee.id,
+        todayStr
+      );
+
+      return { timestamp, workingTime, date: todayStr };
+    } catch (error) {
+      console.error("[Attendance] Error getting daily summary:", error);
+      return null;
+    }
   }
 }
 

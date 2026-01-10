@@ -4,9 +4,12 @@ const {
   beaconNotFoundFlex,
   noShiftFlex,
 } = require("../../../shared/templates/flex/modules/error.flex");
+const {
+  attendanceSuccessMessage, attendanceStatusMessage,
+} = require("../../../shared/templates/flex/modules/attendance.flex");
 
 class AttendanceCommand {
-  // ฟังก์ชันสำหรับจัดการคำสั่งลงเวลา
+  // ฟังก์ชันสำหรับจัดการคำสั่ง "ลงเวลา"
   async handle(event) {
     // เรียกใช้บริการเพื่อลงเวลาด้วยตนเอง
     const result = await AttendanceService.processManualAttendance(
@@ -52,9 +55,47 @@ class AttendanceCommand {
           });
           break;
       }
-    }
+    } else if (result.status === "info" && result.data) {
+      // 2.2 Duplicate Punch Handling
+      // หากสถานะเป็น info และมีข้อมูลกลับมา (หมายถึงบันทึกไปแล้วแต่อยู่ในช่วงเวลาเดิม)
+      // ให้ส่งสรุปเวลาทำงานกลับไปแทนการเงียบหาย พร้อมระบุว่าเป็นการลงเวลาซ้ำ
+      const lastAction = result.data.latestAction || {
+        label: "การลงเวลา",
+        time: null,
+      };
 
-    // กรณีสำเร็จ processBeaconAttendance จะยิง Push Message แจ้งเตือนเองแล้ว
+      await lineProvider.replyOrPush(
+        event,
+        attendanceSuccessMessage({
+          actionLabel: lastAction.label,
+          time: lastAction.time,
+          date: result.data.date,
+          isDuplicate: true,
+        })
+      );
+    }
+    // กรณี success จะมี Push message จาก service อยู่แล้ว
+  }
+
+  // ฟงัก์ชันสำหรับจัดการคำสั่ง "สถานะวันนี้"
+  async statusToday(event) {
+    // เรียกใช้บริการเพื่อนำข้อมูลสรุปเวลาทำงานวันนี้
+    const data = await AttendanceService.getDailySummary(event.source.userId);
+    if (data?.workingTime) {
+      await lineProvider.replyOrPush(
+        event,
+        attendanceStatusMessage({
+          timestamp: data.timestamp,
+          workingTime: data.workingTime,
+          date: data.date,
+        })
+      );
+    } else {
+      await lineProvider.replyOrPush(event, {
+        type: "text",
+        text: "ไม่พบข้อมูลกะการทำงานสำหรับวันนี้ หรือคุณยังไม่ได้ลงทะเบียน",
+      });
+    }
   }
 }
 
