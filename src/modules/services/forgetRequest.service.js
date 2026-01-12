@@ -11,8 +11,8 @@ const {
 const db = require("../../shared/config/db.config");
 
 // Models
-const { ForgetRequest } = require("../models/forgetRequest.model");
-const { TimestampRecord } = require("../models/timestamp.model");
+const ForgetRequest = require("../models/forgetRequest.model");
+const TimestampRecord = require("../models/timestamp.model");
 const { Employee, Companies } = require("../models/employee.model");
 
 // Templates

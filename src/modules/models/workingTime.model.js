@@ -26,58 +26,72 @@ class WorkingTimeModel {
     const sql = `SELECT * FROM workingTime WHERE companyId = ? ORDER BY is_specific DESC, id DESC`;
     const [rows] = await db.query(sql, [companyId]);
 
-    // Helper to check ID list
-    const checkId = (listStr, targetId) => {
-      if (!listStr) return false;
-      try {
-        const clean = String(listStr).replaceAll(/[\\[\]"]/g, "");
-        const ids = clean.split(",").map((s) => s.trim());
-        return ids.includes(String(targetId));
-      } catch (err) {
-        console.error("Error in checkId:", err);
-        return false;
-      }
-    };
-
-    // Helper to check Date list
-    const checkDate = (listStr, targetVal) => {
-      if (!listStr) return false;
-      try {
-        const clean = String(listStr).replaceAll(/[\\[\]"]/g, "");
-        // Some entries might be integers in JSON, some strings.
-        const vals = clean.split(",").map((s) => Number.parseInt(s.trim()));
-        return vals.includes(targetVal);
-      } catch (err) {
-        console.error("Error in checkDate:", err);
-        return false;
-      }
-    };
-
     for (const row of rows) {
-      // 1. Must include employeeId
-      if (!checkId(row.employeeId, employeeId)) continue;
-
-      // 2. Check Match Logic
-      // Case A: Specific Month & Date (Annual/Specific Shift)
-      if (row.month && row.date) {
-        if (row.month === month && checkDate(row.date, dayOfMonth)) {
-          return row;
-        }
-      }
-      // Case B: No month, but has Date (Weekly Pattern?)
-      // Assumption: If month is null and date exists, it works as Day of Week filter
-      else if (!row.month && row.date) {
-        if (checkDate(row.date, dayOfWeek)) {
-          return row;
-        }
-      }
-      // Case C: No date, No month (Default/General)
-      else if (!row.month && !row.date) {
+      if (
+        this.checkId(row.employeeId, employeeId) &&
+        this.isMatch(row, month, dayOfMonth, dayOfWeek)
+      ) {
         return row;
       }
     }
 
     return null;
+  }
+
+  /**
+   * Helper to check ID list
+   * @param {string} listStr
+   * @param {number} targetId
+   * @returns {boolean}
+   */
+  checkId(listStr, targetId) {
+    if (!listStr) return false;
+    try {
+      const clean = String(listStr).replaceAll(/[\\[\]"]/g, "");
+      const ids = clean.split(",").map((s) => s.trim());
+      return ids.includes(String(targetId));
+    } catch (err) {
+      console.error("Error in checkId:", err);
+      return false;
+    }
+  }
+
+  /**
+   * Helper to check Date list
+   * @param {string} listStr
+   * @param {number} targetVal
+   * @returns {boolean}
+   */
+  checkDate(listStr, targetVal) {
+    if (!listStr) return false;
+    try {
+      const clean = String(listStr).replaceAll(/[\\[\]"]/g, "");
+      // Some entries might be integers in JSON, some strings.
+      const vals = clean.split(",").map((s) => Number.parseInt(s.trim()));
+      return vals.includes(targetVal);
+    } catch (err) {
+      console.error("Error in checkDate:", err);
+      return false;
+    }
+  }
+
+  /**
+   * Check if the row matches the date criteria
+   * @param {object} row
+   * @param {number} month
+   * @param {number} dayOfMonth
+   * @param {number} dayOfWeek
+   * @returns {boolean}
+   */
+  isMatch(row, month, dayOfMonth, dayOfWeek) {
+    if (row.month && row.date) {
+      return row.month === month && this.checkDate(row.date, dayOfMonth);
+    } else if (!row.month && row.date) {
+      return this.checkDate(row.date, dayOfWeek);
+    } else if (!row.month && !row.date) {
+      return true;
+    }
+    return false;
   }
 
   /**

@@ -98,4 +98,4 @@ class ForgetRequest {
   }
 }
 
-module.exports = { ForgetRequest: new ForgetRequest() };
+module.exports = new ForgetRequest();
