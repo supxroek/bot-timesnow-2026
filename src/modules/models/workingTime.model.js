@@ -12,15 +12,14 @@ class WorkingTimeModel {
    * @param {number} employeeId
    * @param {number} companyId
    * @param {string} dateString รูปแบบ 'YYYY-MM-DD'
+   * @param {object} options ตัวเลือกเพิ่มเติม { onlyNightShift: boolean }
    * @returns {Promise<object>}
    */
-  async findByEmployeeAndDate(employeeId, companyId, dateString) {
+  async findByEmployeeAndDate(employeeId, companyId, dateString, options = {}) {
     const d = dayjs(dateString);
     const dayOfMonth = d.date(); // 1-31
     const month = d.month() + 1; // 1-12
     const dayOfWeek = d.day() === 0 ? 7 : d.day(); // 1(Mon) - 7(Sun) -- Adjust per your conventions if needed.
-    // Usually JS: 0=Sun, 1=Mon. Let's assume database uses 1=Mon..7=Sun or 1=Sun..7=Sat?
-    // User data example: "Date: [1..6]" for 'Normally'.  Likely 1=Mon.
 
     // ดึงกะทั้งหมดของบริษัทมาก่อน แล้วกรองใน Code (เนื่องจาก JSON filter ซับซ้อนใน SQL)
     const sql = `SELECT * FROM workingTime WHERE companyId = ? ORDER BY is_specific DESC, id DESC`;
@@ -31,6 +30,10 @@ class WorkingTimeModel {
         this.checkId(row.employeeId, employeeId) &&
         this.isMatch(row, month, dayOfMonth, dayOfWeek)
       ) {
+        // ตรวจสอบเงื่อนไข Night Shift
+        if (options.onlyNightShift && row.is_night_shift !== 1) {
+          continue;
+        }
         return row;
       }
     }
