@@ -29,6 +29,8 @@ class TimestampRecord {
   }
 
   // ค้นหา record โดย employeeId และช่วงเวลา (สำหรับ Scanner Scanner)
+  // ปรับปรุงให้ใช้ UNION เพื่อดึงข้อมูลทั้งจากแผนงาน (WorkingTime) และการลงเวลาจริง (TimestampRecords)
+  // เพื่อรองรับกรณีที่ WorkingTime อาจไม่ครบถ้วน หรือข้อมูลไม่สัมพันธ์กัน
   async findByEmployeeAndDateRange(
     employeeId,
     startDate,
@@ -36,9 +38,15 @@ class TimestampRecord {
     conn = null
   ) {
     const sql = `
-      SELECT 
+      (SELECT 
         wt.date,
         wt.free_time,
+        wt.is_break,
+        wt.is_night_shift,
+        wt.start_time as wt_start_time,
+        wt.end_time as wt_end_time,
+        wt.break_start_time as wt_break_start_time,
+        wt.break_end_time as wt_break_end_time,
         tr.otStatus,
         tr.start_time,
         tr.end_time,
@@ -50,11 +58,44 @@ class TimestampRecord {
       FROM workingTime wt
       LEFT JOIN timestamp_records tr ON wt.id = tr.workingTimeId
       WHERE wt.employeeId = ?
-      AND wt.date BETWEEN ? AND ?
-      ORDER BY wt.date ASC
+      AND wt.date BETWEEN ? AND ?)
+      
+      UNION
+
+      (SELECT 
+        DATE(tr.created_at) as date,
+        wt.free_time,
+        wt.is_break,
+        wt.is_night_shift,
+        wt.start_time as wt_start_time,
+        wt.end_time as wt_end_time,
+        wt.break_start_time as wt_break_start_time,
+        wt.break_end_time as wt_break_end_time,
+        tr.otStatus,
+        tr.start_time,
+        tr.end_time,
+        tr.break_start_time,
+        tr.break_end_time,
+        tr.ot_start_time,
+        tr.ot_end_time,
+        tr.created_at
+      FROM timestamp_records tr
+      LEFT JOIN workingTime wt ON tr.workingTimeId = wt.id
+      WHERE tr.employeeid = ?
+      AND DATE(tr.created_at) BETWEEN ? AND ?)
+      
+      ORDER BY date ASC
     `;
     const executor = conn || db;
-    const [rows] = await executor.query(sql, [employeeId, startDate, endDate]);
+    // Parameter order: [emp, start, end, emp, start, end]
+    const [rows] = await executor.query(sql, [
+      employeeId,
+      startDate,
+      endDate,
+      employeeId,
+      startDate,
+      endDate,
+    ]);
     return rows;
   }
 

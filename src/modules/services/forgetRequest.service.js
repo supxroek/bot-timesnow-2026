@@ -520,6 +520,145 @@ const processApproval = async ({ token, action, reason }) => {
 
 // ============================================================
 // ฟังก์ชันสำหรับสแกนหาการลืมลงเวลาย้อนหลัง 30 วัน
+const parseTime = (timeStr) => {
+  if (!timeStr) return null;
+  const [h, m] = timeStr.split(":").map(Number);
+  return h * 60 + m;
+};
+
+// Helper: ตรวจสอบว่ายังไมถึงเวลากำหนด (สำหรับวันนี้)
+const isTimeWindowNotReached = ({
+  expectedTimeStr,
+  record,
+  currentTimeVal,
+  isNightShift,
+  type,
+}) => {
+  if (!expectedTimeStr) return true; // ไม่มีตารางงาน -> ถือว่ายังไม่ถึงเวลา (ไม่ขาด)
+
+  const expectedTimeVal = parseTime(expectedTimeStr);
+  const targetTimeVal = expectedTimeVal + 5; // เผื่อเวลา 5 นาที
+
+  // กรณี Night Shift สำหรับเวลาออกงาน (work_out)
+  const wtStartVal = parseTime(record.wt_start_time);
+  if (
+    isNightShift &&
+    wtStartVal &&
+    expectedTimeVal < wtStartVal &&
+    type === "work_out"
+  ) {
+    // เวลาที่คาดไว้คือพรุ่งนี้ วันนี้เป็นวันเริ่มต้น เรายังไม่ถึงวันพรุ่งนี้
+    return true;
+  }
+
+  // ถ้าเวลาปัจจุบันยังไม่ถึงเวลาที่กำหนด
+  return currentTimeVal < targetTimeVal;
+};
+
+// Helper: ตรวจสอบสล็อตเวลา (Time Slot)
+// ลดความซับซ้อนโดยแยก Logic การตรวจสอบออกมา
+const verifyTimeSlot = ({
+  type,
+  actualValue,
+  expectedTimeStr,
+  isNightShift,
+  isConsistencyCheck,
+  record,
+  context,
+}) => {
+  const { isToday, dateStr, pendingMap, currentTimeVal, missingItems } =
+    context;
+
+  // 1. ถูกต้อง: หากมีค่าอยู่แล้ว -> ไม่ขาด (Not missing)
+  if (actualValue) return;
+
+  // 2. รออนุมัติ: ถ้ามีคำขอรออนุมัติอยู่ -> pending
+  const key = `${dateStr}_${type}`;
+  if (pendingMap.has(key)) {
+    missingItems.push({
+      date: dateStr,
+      type: type,
+      typeText: mapTypeToText(type),
+      status: "pending",
+    });
+    return;
+  }
+
+  // 3. ตรวจสอบเงื่อนไขการข้าม (Skip logic)
+  let shouldSkip = false;
+
+  if (isToday) {
+    // สำหรับวันนี้: ถ้าไม่ใช่การตรวจสอบความสอดคล้อง ให้เช็ค Time Window
+    if (!isConsistencyCheck) {
+      shouldSkip = isTimeWindowNotReached({
+        expectedTimeStr,
+        record,
+        currentTimeVal,
+        isNightShift,
+        type,
+      });
+    }
+  } else if (!isConsistencyCheck && !expectedTimeStr) {
+    // สำหรับวันในอดีต: ข้ามถ้าไม่ใช่การตรวจสอบความสอดคล้อง และไม่มีตารางงาน
+    shouldSkip = true;
+  }
+
+  if (shouldSkip) return;
+
+  // 4. ขาดเวลา (Missing)
+  missingItems.push({
+    date: dateStr,
+    type: type,
+    typeText: mapTypeToText(type),
+    status: "missing",
+  });
+};
+
+// Helper: ตรวจสอบ OT
+const verifyOT = (record, dateStr, pendingMap, missingItems) => {
+  if (record.otStatus != 1) return;
+
+  // ตรวจสอบเวลาเข้า OT
+  if (!record.ot_start_time) {
+    const key = `${dateStr}_ot_in`;
+    if (pendingMap.has(key)) {
+      missingItems.push({
+        date: dateStr,
+        type: "ot_in",
+        typeText: "เข้า OT",
+        status: "pending",
+      });
+    } else {
+      missingItems.push({
+        date: dateStr,
+        type: "ot_in",
+        typeText: "เข้า OT",
+        status: "missing",
+      });
+    }
+  }
+
+  // ตรวจสอบเวลาออก OT
+  if (!record.ot_end_time) {
+    const key = `${dateStr}_ot_out`;
+    if (pendingMap.has(key)) {
+      missingItems.push({
+        date: dateStr,
+        type: "ot_out",
+        typeText: "ออก OT",
+        status: "pending",
+      });
+    } else {
+      missingItems.push({
+        date: dateStr,
+        type: "ot_out",
+        typeText: "ออก OT",
+        status: "missing",
+      });
+    }
+  }
+};
+
 const scanMissingTimestamps = async (lineUserId) => {
   // 1. ตรวจสอบพนักงาน
   const employee = await Employee.findByLineUserId(lineUserId);
@@ -533,7 +672,7 @@ const scanMissingTimestamps = async (lineUserId) => {
   pastDate.setDate(today.getDate() - 30);
   const startDate = normalizeDate(pastDate);
 
-  // 3. ดึงข้อมูล (Parallel Execution)
+  // 3. ดึงข้อมูล (Bulk Data Fetching)
   const [records, pendingRequests] = await Promise.all([
     TimestampRecord.findByEmployeeAndDateRange(employee.id, startDate, endDate),
     ForgetRequest.findPendingByEmployeeAndRange(
@@ -545,58 +684,102 @@ const scanMissingTimestamps = async (lineUserId) => {
 
   const missingItems = [];
 
-  // สร้าง Map ของ Pending Requests เพื่อเช็คได้เร็ว O(1)
-  // Key format: "YYYY-MM-DD_type"
+  // สร้าง Map สำหรับ Lookup O(1)
   const pendingMap = new Set();
   pendingRequests.forEach((req) => {
     const d = normalizeDate(req.forget_date);
     pendingMap.add(`${d}_${req.timestamp_type}`);
   });
 
-  // Helper: Get checks for a record
-  const getChecks = (record) => {
-    let checks = [
-      { type: "work_in", value: record.start_time },
-      { type: "work_out", value: record.end_time },
-    ];
+  // Prepare current time info for "Today" logic
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+  const currentTimeVal = currentHour * 60 + currentMinute; // minutes from midnight
 
-    if (record.free_time != 1) {
-      checks.push(
-        { type: "break_in", value: record.break_start_time },
-        { type: "break_out", value: record.break_end_time }
-      );
-    }
-
-    if (record.otStatus == 1) {
-      checks.push(
-        { type: "ot_in", value: record.ot_start_time },
-        { type: "ot_out", value: record.ot_end_time }
-      );
-    }
-
-    return checks;
-  };
-
-  // 4. ตรวจสอบเงื่อนไข
   for (const record of records) {
     const dateStr = normalizeDate(record.date);
 
-    const checks = getChecks(record);
+    // กฏเกณฑ์การยกเว้น: ข้ามหากเป็นวันก่อนเรื่มงานหรือหลังวันลาออก
+    if (employee.start_date && dateStr < normalizeDate(employee.start_date))
+      continue;
+    if (employee.resign_date && dateStr > normalizeDate(employee.resign_date))
+      continue;
 
-    for (const check of checks) {
-      if (!check.value) {
-        const key = `${dateStr}_${check.type}`;
-        const status = pendingMap.has(key) ? "pending" : "missing";
+    // ตรวจสอบว่าเป็น "วันนี้" หรือไม่
+    const isToday = dateStr === endDate;
+    const context = {
+      isToday,
+      dateStr,
+      pendingMap,
+      currentTimeVal,
+      missingItems,
+    };
 
-        missingItems.push({
-          date: dateStr,
-          type: check.type,
-          typeText: mapTypeToText(check.type),
-          status: status,
-        });
-      }
+    // 1. Work In
+    // ความสอดคล้อง: หากมีเวลาออก หรือ มีกิจกรรมพัก -> ต้องมีเวลาเข้า
+    const forceWorkIn =
+      !!record.end_time || !!record.break_start_time || !!record.break_end_time;
+    verifyTimeSlot({
+      type: "work_in",
+      actualValue: record.start_time,
+      expectedTimeStr: record.wt_start_time,
+      isNightShift: record.is_night_shift,
+      isConsistencyCheck: forceWorkIn,
+      record,
+      context,
+    });
+
+    // 2. Break
+    // ตรวจสอบว่าต้องมีเบรคหรือไม่: (is_break=1) หรือ (มีกิจกรรมเบรคเกิดขึ้นจริง)
+    const hasBreakActivity = record.break_start_time || record.break_end_time;
+    const shouldCheckBreak = record.is_break === 1 || hasBreakActivity;
+
+    if (shouldCheckBreak) {
+      // ความสอดคล้อง: ถ้ามีเวลากลับจากพัก -> ต้องมีเวลาเริ่มพัก
+      const forceBreakIn = !!record.break_end_time;
+      verifyTimeSlot({
+        type: "break_in",
+        actualValue: record.break_start_time,
+        expectedTimeStr: record.wt_break_start_time,
+        isNightShift: record.is_night_shift,
+        isConsistencyCheck: forceBreakIn,
+        record,
+        context,
+      });
+
+      // ความสอดคล้อง: ถ้ามีเวลาเริ่มพัก -> ต้องมีเวลากลับจากพัก
+      const forceBreakOut = !!record.break_start_time;
+      verifyTimeSlot({
+        type: "break_out",
+        actualValue: record.break_end_time,
+        expectedTimeStr: record.wt_break_end_time,
+        isNightShift: record.is_night_shift,
+        isConsistencyCheck: forceBreakOut,
+        record,
+        context,
+      });
     }
+
+    // 3. Work Out
+    // ใช้ตามตารางงานเป็นหลัก (forceWorkOut = false)
+    const forceWorkOut = false;
+    verifyTimeSlot({
+      type: "work_out",
+      actualValue: record.end_time,
+      expectedTimeStr: record.wt_end_time,
+      isNightShift: record.is_night_shift,
+      isConsistencyCheck: forceWorkOut,
+      record,
+      context,
+    });
+
+    // 4. OT (ตรวจสอบสถานะ OT)
+    verifyOT(record, dateStr, pendingMap, missingItems);
   }
+
+  // เรียงลำดับตามวันที่ (ล่าสุดขึ้นก่อน)
+  missingItems.sort((a, b) => (a.date < b.date ? 1 : -1));
 
   return missingItems;
 };

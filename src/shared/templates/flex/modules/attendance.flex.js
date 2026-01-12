@@ -14,6 +14,7 @@ const _smartTimeBox = (
   timeVal,
   targetTimeVal, // From workingTime
   dateStr,
+  type,
   now = dayjs()
 ) => {
   // สร้าง content หลัก
@@ -45,7 +46,7 @@ const _smartTimeBox = (
         action: {
           type: "uri",
           label: "แจ้งลืม",
-          uri: "https://liff.line.me/2006755947-3C7TBS5B",
+          uri: `https://liff.line.me/2006755947-3C7TBS5B?date=${dateStr}&type=${type}`,
         },
         height: "sm",
         style: "link",
@@ -273,13 +274,15 @@ const attendanceStatusMessage = ({
               "เข้างาน",
               timestamp?.start_time,
               workingTime?.start_time,
-              date
+              date,
+              "work_in"
             ),
             _smartTimeBox(
               "เริ่มพัก",
               timestamp?.break_start_time,
               workingTime?.break_start_time,
-              date
+              date,
+              "break_in"
             ),
           ],
         },
@@ -293,13 +296,15 @@ const attendanceStatusMessage = ({
               "เข้างาน(บ่าย)",
               timestamp?.break_end_time,
               workingTime?.break_end_time,
-              date
+              date,
+              "break_out"
             ),
             _smartTimeBox(
               "เลิกงาน",
               timestamp?.end_time,
               workingTime?.end_time,
-              date
+              date,
+              "work_out"
             ),
           ],
         },
@@ -318,13 +323,15 @@ const attendanceStatusMessage = ({
                     "OT เข้า",
                     timestamp?.ot_start_time,
                     workingTime?.ot_start_time,
-                    date
+                    date,
+                    "ot_in"
                   ),
                   _smartTimeBox(
                     "OT ออก",
                     timestamp?.ot_end_time,
                     workingTime?.ot_end_time,
-                    date
+                    date,
+                    "ot_out"
                   ),
                 ],
               },
