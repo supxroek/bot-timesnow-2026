@@ -1,8 +1,14 @@
 const dayjs = require("dayjs");
 const duration = require("dayjs/plugin/duration");
 const isBetween = require("dayjs/plugin/isBetween");
+const utc = require("dayjs/plugin/utc");
+const timezone = require("dayjs/plugin/timezone");
+
 dayjs.extend(duration);
 dayjs.extend(isBetween);
+dayjs.extend(utc);
+dayjs.extend(timezone);
+dayjs.tz.setDefault("Asia/Bangkok");
 
 const { normalizeDate, normalizeTime } = require("../../shared/utils/date");
 const { Employee } = require("../models/employee.model");
@@ -16,15 +22,16 @@ const {
   attendanceSuccessMessage,
 } = require("../../shared/templates/flex/modules/attendance.flex");
 
+// Class AttendanceService
 class AttendanceService {
   constructor() {
     this.beaconState = new Map(); // เก็บสถานะ Beacon { userId: { hwid, timestamp } }
     this.actionDebounce = new Map(); // New: Debounce map { userId: { action, timestamp } }
   }
 
-  // =========================================================================
-  // 0. Helper Methods (ฟังก์ชันช่วยทำงาน)
-  // =========================================================================
+  // ==============================================================
+  //        ส่วนของฟังก์ชันช่วยเหลือ (Helper Functions)
+  // ==============================================================
 
   // ตรวจสอบอุปกรณ์และพนักงาน
   async _validateDeviceAndEmployee(lineUserId, hwid) {
@@ -80,7 +87,9 @@ class AttendanceService {
       todayStr
     );
 
-    if (!workingTime && now.hour() < 6) {
+    if (!workingTime) {
+      // Improved Night Shift Logic: Flexible Check
+      // ถ้าไม่พบกะของวันนี้ ให้ตรวจสอบกะของเมื่อวาน (เฉพาะกะดึก)
       const yesterday = now.subtract(1, "day");
       const yesterdayStr = normalizeDate(yesterday.toISOString());
       const nightShift = await WorkingTimeModel.findByEmployeeAndDate(
@@ -91,11 +100,26 @@ class AttendanceService {
       );
 
       if (nightShift) {
-        logger.info(
-          `[Attendance] พบกะกลางคืนจากเมื่อวาน (${yesterdayStr}) สำหรับพนักงาน ${employee.id}`
-        );
-        workingTime = nightShift;
-        todayStr = yesterdayStr;
+        // คำนวณเวลาสิ้นสุดของกะเมื่อวาน
+        // กรณีข้ามวัน: Start > End (e.g. 20:00 -> 05:00)
+        // กรณีไม่ข้ามวัน: Start < End (e.g. 18:00 -> 23:00) - ไม่น่าใช่ Night Shift ปกติ แต่รองรับไว้
+        let end = dayjs(`${yesterdayStr} ${nightShift.end_time}`); // Default same day
+
+        // ถ้า End < Start แสดงว่าข้ามวัน (ต้องบวก 1 วันให้เวลาจบ)
+        if (nightShift.end_time < nightShift.start_time) {
+          end = end.add(1, "day");
+        }
+
+        // Buffer 4 ชั่วโมง (ให้ลงเวลาสายได้ไม่เกิน 4 ชม. จากเวลาเลิกงาน)
+        const extendedEnd = end.add(4, "hour");
+
+        if (now.isBefore(extendedEnd)) {
+          logger.info(
+            `[Attendance] พบกะกลางคืนต่อเนื่องจากเมื่อวาน (${yesterdayStr})`
+          );
+          workingTime = nightShift;
+          todayStr = yesterdayStr;
+        }
       }
     }
     return { workingTime, todayStr };
@@ -109,17 +133,26 @@ class AttendanceService {
     timestamp,
     currentTimeStr
   ) {
+    // เตรียมข้อมูลที่จะอัปเดต
+    const updateData = {
+      [action.field]: currentTimeStr,
+    };
+
+    // [New] Reporting Metadata: บันทึกข้อมูล OT
+    if (action.overtimeId) {
+      updateData.overtimeId = action.overtimeId;
+      updateData.otStatus = 1;
+    }
+
     if (action.type === "INSERT") {
       await TimestampRecord.createTimestamp({
         employeeid: employee.id,
         workingTimeId: workingTime.id,
         companyId: employee.companyId,
-        [action.field]: currentTimeStr,
+        ...updateData,
       });
     } else if (action.type === "UPDATE") {
-      await TimestampRecord.updateTimestamp(timestamp.id, {
-        [action.field]: currentTimeStr,
-      });
+      await TimestampRecord.updateTimestamp(timestamp.id, updateData);
     }
   }
 
@@ -150,10 +183,10 @@ class AttendanceService {
       ? dayjs(`${todayStr} ${targetTimeStr}`)
       : null;
 
-    // ถ้าเวลาปัจจุบัน >= (เป้าหมาย - 10 นาที) ให้แจ้งเตือน
+    // ถ้าเวลาปัจจุบัน >= (เป้าหมาย) ให้แจ้งเตือน
     if (targetTime) {
       const diffMinutes = now.diff(targetTime, "minute"); // ถ้าเป็นบวกคือเลยเวลา, ลบคือยังไม่ถึง
-      if (diffMinutes >= -10) {
+      if (diffMinutes >= 0) {
         return {
           device: device,
           actionLabel: action.label,
@@ -201,7 +234,6 @@ class AttendanceService {
     return null;
   }
 
-  // =========================================================================
   // ตรวจสอบการกระทำซ้ำ (Debounce) ภายในระยะเวลาที่กำหนด
   _checkDebounce(userId, action) {
     if (!this.actionDebounce.has(userId)) return false;
@@ -258,11 +290,11 @@ class AttendanceService {
 
   // กำหนด Action สำหรับช่วงพัก
   _determineBreakAction(now, breakStart) {
-    // กฎข้อ 2: ลงก่อนเวลาพักได้ 5 นาที
-    if (breakStart && now.isBefore(breakStart.subtract(5, "minute"))) {
+    // กฎข้อ 2: ลงได้ตั้งแต่เวลาที่กะระบุเป็นต้นไป (Strict Check)
+    if (breakStart && now.isBefore(breakStart)) {
       return {
         type: "NONE",
-        reason: "ยังไม่ถึงเวลาพัก (ต้องไม่เกิน 5 นาทีก่อนเวลา)",
+        reason: "ยังไม่ถึงเวลาพัก",
       };
     }
     return { type: "UPDATE", field: "break_start_time", label: "เริ่มพัก" };
@@ -311,7 +343,12 @@ class AttendanceService {
         };
       }
 
-      return { type: "UPDATE", field: "ot_start_time", label: "เริ่ม OT" };
+      return {
+        type: "UPDATE",
+        field: "ot_start_time",
+        label: "เริ่ม OT",
+        overtimeId: otPermission.id, // [New] Return ID for Reporting
+      };
     }
 
     if (!hasOTEnd) {
@@ -332,9 +369,9 @@ class AttendanceService {
     return { type: "UPDATE", field: "end_time", label: "เลิกงาน(อัปเดต)" };
   }
 
-  // =========================================================================
-  // 1. ส่วนจัดการสถานะ Beacon (Beacon State Management)
-  // =========================================================================
+  // ==============================================================
+  //          ส่วนของฟังก์ชันบริการ (Service Functions)
+  // ==============================================================
 
   // อัพเดตสถานะ Beacon เมื่อได้รับ Event
   updateBeaconState(userId, hwid) {
@@ -349,10 +386,6 @@ class AttendanceService {
       `[Attendance] จำนวน Beacon State ปัจจุบัน: ${this.beaconState.size}`
     );
   }
-
-  // =========================================================================
-  // 2. ส่วนประมวลผลหลัก (Main Processing)
-  // =========================================================================
 
   // ตรวจสอบการลงเวลาด้วยตัวเอง (Manual Check via Menu)
   // ใช้ข้อมูล State จาก Beacon ล่าสุด
@@ -377,15 +410,7 @@ class AttendanceService {
     return await this.processBeaconAttendance(userId, state.hwid);
   }
 
-  // =========================================================================
-  // 3. ส่วนประมวลผลการบันทึกเวลา (Attendance Processing)
-  // =========================================================================
-
-  /**
-   * ประมวลผลการบันทึกเวลา (Core Logic)
-   * @param {string} lineUserId
-   * @param {string} hwid
-   */
+  // ประมวลผลการบันทึกเวลา (Core Logic)
   async processBeaconAttendance(lineUserId, hwid) {
     try {
       logger.info(
@@ -490,10 +515,6 @@ class AttendanceService {
     }
   }
 
-  // =========================================================================
-  // 4. ส่วนตรวจสอบการแจ้งเตือนอัจฉริยะ (Smart Notification Validation)
-  // =========================================================================
-
   // ตรวจสอบว่าควรแจ้งเตือน Flex Message หรือไม่เมื่อเดินผ่าน Beacon
   async validateBeaconTrigger(lineUserId, hwid) {
     try {
@@ -568,10 +589,6 @@ class AttendanceService {
     }
   }
 
-  // =========================================================================
-  // 5. Business Logic: การกำหนด Action ตามช่วงเวลา (Time Determination)
-  // =========================================================================
-
   // คำนวณว่าจะลงเวลาช่องไหน โดยใช้กฎเกณฑ์ที่กำหนด
   async determineTimeAction(wt, now, tr, employeeId, companyId) {
     // กรณี Free Time (ไม่มีกะตายตัว)
@@ -631,10 +648,6 @@ class AttendanceService {
     // 5. ช่วง OT (OT Window)
     return await this._determineOTAction(tr, employeeId, companyId, now);
   }
-
-  // =========================================================================
-  // 6. Data Retrieval for Summary
-  // =========================================================================
 
   // ดึงข้อมูลสรุปประจำวัน (Timestamp + Working Time)
   async getDailySummary(lineUserId) {

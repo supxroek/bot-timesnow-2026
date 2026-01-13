@@ -75,7 +75,7 @@ Validate token (Joi schema)
 ↓
 liffController.checkRegistrationStatus()
 ↓
-checkRegistrationStatusService(token)
+checkRegistrationStatus(token)
 ↓
 decodeApprovalToken(token) → JWT verify
 ↓
@@ -112,7 +112,7 @@ Validate token & action (Joi schema)
 ↓
 liffController.approveRegistration()
 ↓
-approveService({ token, action, reason })
+approve({ token, action, reason })
 ↓
 decodeApprovalToken(token) → JWT verify
 ↓
@@ -258,8 +258,8 @@ Layer 6: Error Handling (catch ER_DUP_ENTRY)
 ┌─────────────────────────────────────────────────────────┐
 │ Business Logic │
 │ register.service.js │
-│ - checkRegistrationStatusService() │
-│ - approveService() │
+│ - checkRegistrationStatus() │
+│ - approve() │
 │ - processApproval() │
 │ - JWT decode & validation │
 │ - Handle reactivation for resigned employees │
@@ -286,7 +286,7 @@ Layer 6: Error Handling (catch ER_DUP_ENTRY)
 
 2. **Backend Services** (1 file)
 
-   - `register.service.js` → Added checkRegistrationStatusService(), improved error handling, support reactivation
+   - `register.service.js` → Added checkRegistrationStatus(), improved error handling, support reactivation
 
 3. **Backend Controllers** (1 file)
 

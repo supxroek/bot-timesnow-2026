@@ -5,18 +5,9 @@
  */
 
 // import services และอื่นๆ ที่จำเป็น
-const {
-  companyService,
-  registerService,
-  approveService,
-  checkRegistrationStatusService,
-} = require("../services/register.service");
-const {
-  createRequest,
-  getRequestInfo,
-  processApproval: processApprovalRequest,
-  scanMissingTimestamps,
-} = require("../services/forgetRequest.service");
+const CompanyService = require("../services/register.service").CompanyService;
+const RegisterService = require("../services/register.service").RegisterService;
+const ForgetRequestService = require("../services/forgetRequest.service");
 const catchAsync = require("../../shared/utils/catchAsync");
 const AppError = require("../../shared/utils/AppError");
 
@@ -24,7 +15,7 @@ class LiffController {
   // ====================================================================
   // ฟังก์ชันสำหรับดึงข้อมูลบริษัททั้งหมด
   getCompanies = catchAsync(async (_req, res, _next) => {
-    const companies = await companyService();
+    const companies = await CompanyService.getAllCompanies();
     res.status(200).json({
       status: "success",
       data: companies,
@@ -38,7 +29,7 @@ class LiffController {
     if (!name || !IDCard || !companyId || !lineUserId || !start_date) {
       throw new AppError("ข้อมูลไม่ครบถ้วนสำหรับการลงทะเบียน", 400);
     }
-    const result = await registerService({
+    const result = await RegisterService.createRegistrationRequest({
       name,
       IDCard,
       companyId,
@@ -64,7 +55,11 @@ class LiffController {
         400
       );
     }
-    const result = await approveService({ token, action, reason });
+    const result = await RegisterService.approve({
+      token,
+      action,
+      reason,
+    });
     res.status(200).json({
       status: "success",
       data: result,
@@ -78,7 +73,7 @@ class LiffController {
     if (!token) {
       throw new AppError("ไม่พบ Token การยืนยันตัวตน", 400);
     }
-    const result = await checkRegistrationStatusService(token);
+    const result = await RegisterService.checkRegistrationStatus(token);
     res.status(200).json({
       status: "success",
       data: result,
@@ -91,7 +86,7 @@ class LiffController {
     const { lineUserId, companyId, date, time, type, reason, evidence } =
       req.body;
 
-    const result = await createRequest({
+    const result = await ForgetRequestService.createRequest({
       lineUserId,
       companyId,
       date,
@@ -114,7 +109,7 @@ class LiffController {
     if (!lineUserId) {
       throw new AppError("Line User ID is required", 400);
     }
-    const result = await scanMissingTimestamps(lineUserId);
+    const result = await ForgetRequestService.scanMissingTimestamps(lineUserId);
 
     res.status(200).json({
       status: "success",
@@ -128,7 +123,7 @@ class LiffController {
     const { token } = req.body;
     if (!token) throw new AppError("Token is required", 400);
 
-    const result = await getRequestInfo(token);
+    const result = await ForgetRequestService.getRequestInfo(token);
     res.status(200).json({
       status: "success",
       data: result,
@@ -141,7 +136,11 @@ class LiffController {
     const { token, action, reason } = req.body;
     if (!token) throw new AppError("Token is required", 400);
 
-    const result = await processApprovalRequest({ token, action, reason });
+    const result = await ForgetRequestService.processApproval({
+      token,
+      action,
+      reason,
+    });
     res.status(200).json({
       status: "success",
       data: result,
