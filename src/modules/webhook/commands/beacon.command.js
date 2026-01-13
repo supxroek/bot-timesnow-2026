@@ -6,6 +6,7 @@ const {
 
 // Class สำหรับจัดการ Events Beacon
 class BeaconCommand {
+  // ฟังก์ชันสำหรับจัดการคำสั่ง Beacon
   async handle(event) {
     const { beacon, source } = event;
 

@@ -10,6 +10,49 @@ const {
 } = require("../../../shared/templates/flex/modules/attendance.flex");
 
 class AttendanceCommand {
+  // ==============================================================
+  //        ส่วนของฟังก์ชันช่วยเหลือ (Helper Functions)
+  // ==============================================================
+  // Helper: สำหรับเรียก processManualAttendance ใหม่ (กรณี Beacon Expired) สูงสุด n ครั้ง
+  async _attemptWithBeaconRetries(event, maxRetries = 3) {
+    const userId = event?.source?.userId;
+    if (!userId) return { status: "error", message: "Employee Unauthorized" };
+
+    let attempt = 0;
+    while (attempt < maxRetries) {
+      try {
+        const res = await AttendanceService.processManualAttendance(userId);
+
+        // กรณีที่ไม่ใช่ Beacon Expired ให้คืนค่าไปทันที (รวมทั้ง success, info, หรือ error อื่น ๆ)
+        if (
+          !(
+            res?.status === "error" &&
+            res.message === "Beacon Expired or Not Found"
+          )
+        ) {
+          return res;
+        }
+
+        // ถ้าเป็น Beacon Expired ให้รอเล็กน้อยแล้วลองใหม่ (เพื่อให้ device/scan มีเวลา)
+        attempt += 1;
+        if (attempt < maxRetries) {
+          // รอ 1.5 วินาที ก่อนลองใหม่ (เบาๆ เพื่อ UX)
+          await new Promise((r) => setTimeout(r, 1500));
+        }
+      } catch (err) {
+        console.error("[AttendanceCommand] retry error:", err);
+        return { status: "error", message: err.message || "Unknown Error" };
+      }
+    }
+
+    // หากลองครบแล้วยังไม่ผ่าน ให้ส่ง Error เดิมกลับไป (ให้ระบบแสดง beaconNotFoundFlex)
+    return { status: "error", message: "Beacon Expired or Not Found" };
+  }
+
+  // ==============================================================
+  //        ส่วนของฟังก์ชันหลัก (Main Functions)
+  // ==============================================================
+
   // ฟังก์ชันสำหรับจัดการคำสั่ง "ลงเวลา"
   async handle(event) {
     // เรียกใช้บริการเพื่อลงเวลาด้วยตนเอง (ผ่าน helper ที่มี retry กรณี Beacon Expired)
@@ -74,42 +117,6 @@ class AttendanceCommand {
       );
     }
     // กรณี success จะมี Push message จาก service อยู่แล้ว
-  }
-
-  // ช่วยฟังก์ชัน: ลองเรียก processManualAttendance ใหม่ (กรณี Beacon Expired) สูงสุด n ครั้ง
-  async _attemptWithBeaconRetries(event, maxRetries = 3) {
-    const userId = event?.source?.userId;
-    if (!userId) return { status: "error", message: "Employee Unauthorized" };
-
-    let attempt = 0;
-    while (attempt < maxRetries) {
-      try {
-        const res = await AttendanceService.processManualAttendance(userId);
-
-        // กรณีที่ไม่ใช่ Beacon Expired ให้คืนค่าไปทันที (รวมทั้ง success, info, หรือ error อื่น ๆ)
-        if (
-          !(
-            res?.status === "error" &&
-            res.message === "Beacon Expired or Not Found"
-          )
-        ) {
-          return res;
-        }
-
-        // ถ้าเป็น Beacon Expired ให้รอเล็กน้อยแล้วลองใหม่ (เพื่อให้ device/scan มีเวลา)
-        attempt += 1;
-        if (attempt < maxRetries) {
-          // รอ 1.5 วินาที ก่อนลองใหม่ (เบาๆ เพื่อ UX)
-          await new Promise((r) => setTimeout(r, 1500));
-        }
-      } catch (err) {
-        console.error("[AttendanceCommand] retry error:", err);
-        return { status: "error", message: err.message || "Unknown Error" };
-      }
-    }
-
-    // หากลองครบแล้วยังไม่ผ่าน ให้ส่ง Error เดิมกลับไป (ให้ระบบแสดง beaconNotFoundFlex)
-    return { status: "error", message: "Beacon Expired or Not Found" };
   }
 
   // ฟงัก์ชันสำหรับจัดการคำสั่ง "สถานะวันนี้"

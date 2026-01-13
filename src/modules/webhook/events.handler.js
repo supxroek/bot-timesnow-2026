@@ -18,30 +18,12 @@ const INTENT_HANDLERS = {
     keywords: ["hello", "hi", "hey", "สวัสดี", "หวัดดี", "ดีจ้า", "ดีครับ"],
     execute: async (event) => lineProvider.replyOrPush(event, greetingFlex()),
   },
-  REGISTRATION: {
-    keywords: ["register", "sign up", "สมัคร", "ลงทะเบียน"],
-    execute: async (event) =>
-      lineProvider.replyOrPush(event, {
-        type: "text",
-        text: "หากต้องการลงทะเบียน กรุณาเยี่ยมชมหน้าลงทะเบียนของเราที่ [ลิงก์]",
-      }),
-  },
   ATTENDANCE: {
     keywords: [
       "ot in","check in","break in","break out","check out","ot out",
       "บันทึกเวลา","บันทึกเวลาเข้า","บันทึกเวลาออก","บันทึกเวลาพักเบรค","บันทึกเวลาเลิกพักเบรค","บันทึกเวลา OT เข้า","บันทึกเวลา OT ออก",
     ],
     execute: async (event) => AttendanceCommand.handle(event),
-  },
-  FORGOT_ATTENDANCE: {
-    keywords: [
-      "forgot attendance","แจ้งลืมลงเวลา",
-    ],
-    execute: async (event) =>
-      lineProvider.replyOrPush(event, {
-        type: "text",
-        text: "หากคุณลืมบันทึกเวลาทำงาน กรุณาติดต่อฝ่ายบุคคลเพื่อขอความช่วยเหลือครับ/ค่ะ",
-      }),
   },
   STATUS_TODAY: {
     keywords: [
