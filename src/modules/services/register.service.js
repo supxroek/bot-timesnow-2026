@@ -138,10 +138,10 @@ class RegisterService {
     }
 
     // Link Rich Menu
-    await _linkRichMenuSafe(lineUserId);
+    await this._linkRichMenuSafe(lineUserId);
 
     // แจ้งเตือนผู้ใช้ผ่าน LINE
-    await _sendLineNotificationSafe(
+    await this._sendLineNotificationSafe(
       lineUserId,
       registerApprovedMessage({ name, IDCard, start_date })
     );
@@ -158,7 +158,7 @@ class RegisterService {
     const { name, IDCard, companyId, lineUserId, start_date } = decoded;
 
     // แจ้งเตือนผู้ใช้ผ่าน LINE เท่านั้น
-    await _sendLineNotificationSafe(
+    await this._sendLineNotificationSafe(
       lineUserId,
       registerRejectedMessage({ name, IDCard, start_date, reason })
     );
@@ -256,7 +256,7 @@ class RegisterService {
     }
 
     // 7. แจ้งเตือนผลการลงทะเบียน (รอการอนุมัติ) ผ่าน LINE
-    await _sendLineNotificationSafe(
+    await this._sendLineNotificationSafe(
       lineUserId,
       registerPendingMessage({ name, IDCard, start_date })
     );
@@ -272,7 +272,7 @@ class RegisterService {
   // ฟังก์ชันสำหรับตรวจสอบสถานะการลงทะเบียน
   checkRegistrationStatus = async (token) => {
     // 1. ถอดรหัส token
-    const decoded = _decodeApprovalToken(token);
+    const decoded = this._decodeApprovalToken(token);
     const { name, IDCard, companyId, lineUserId, start_date } = decoded;
 
     // 2. ตรวจสอบข้อมูลบริษัท
@@ -313,18 +313,18 @@ class RegisterService {
   // ฟังก์ชันสำหรับอนุมัติ/ปฏิเสธ การลงทะเบียน
   approve = async ({ token, action, reason }) => {
     // 1. ถอดรหัส token
-    const decoded = _decodeApprovalToken(token);
+    const decoded = this._decodeApprovalToken(token);
 
     // 2. ดำเนินการตาม action
     if (action === "approve") {
       // ตรวจสอบข้อมูลก่อนอนุมัติ
-      const { existingEmployee } = await _validateApprovalData(decoded);
-      return _processApproval(decoded, existingEmployee);
+      const { existingEmployee } = await this._validateApprovalData(decoded);
+      return this._processApproval(decoded, existingEmployee);
     }
 
     if (action === "reject") {
       // ปฏิเสธ - แค่แจ้งผู้ใช้ ไม่ต้องตรวจสอบ
-      return _processRejection(decoded, reason);
+      return this._processRejection(decoded, reason);
     }
 
     throw new AppError("การดำเนินการไม่ถูกต้อง", 400);

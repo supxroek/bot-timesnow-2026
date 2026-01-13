@@ -95,7 +95,7 @@ class ForgetRequestService {
     // ถ้ายังไม่มี Record ในวันนั้น -> ต้องสร้างใหม่ (พร้อม WorkingTime)
     if (record) {
       // มี Record แล้ว -> Update
-      const fieldName = _mapTypeToField(timestamp_type);
+      const fieldName = this._mapTypeToField(timestamp_type);
       if (fieldName) {
         await TimestampRecord.updateTimestamp(
           record.id,
@@ -126,7 +126,7 @@ class ForgetRequestService {
       };
 
       // Map field ตาม type
-      const fieldName = _mapTypeToField(timestamp_type);
+      const fieldName = this._mapTypeToField(timestamp_type);
       if (fieldName) {
         insertData[fieldName] = forget_time;
       }
@@ -194,7 +194,7 @@ class ForgetRequestService {
       date: formatDateThai(normalizedDate),
       currentTime: originalTime,
       time: normalizedTime.substring(0, 5),
-      type: _mapTypeToText(type),
+      type: this._mapTypeToText(type),
       reason: reason || "-",
     };
 
@@ -290,7 +290,7 @@ class ForgetRequestService {
     try {
       await conn.beginTransaction();
 
-      await _updateTimestampFromRequest(request, conn);
+      await this._updateTimestampFromRequest(request, conn);
 
       await ForgetRequest.updateStatus(request.id, "approved", conn);
 
@@ -347,7 +347,7 @@ class ForgetRequestService {
       dateStr
     );
     if (existingRecord) {
-      const fieldName = _mapTypeToField(timestampType);
+      const fieldName = this._mapTypeToField(timestampType);
       if (fieldName && existingRecord[fieldName]) {
         return normalizeTime(existingRecord[fieldName]).substring(0, 5);
       }
@@ -392,11 +392,11 @@ class ForgetRequestService {
   }) => {
     if (!expectedTimeStr) return true; // ไม่มีตารางงาน -> ถือว่ายังไม่ถึงเวลา (ไม่ขาด)
 
-    const expectedTimeVal = _parseTime(expectedTimeStr);
+    const expectedTimeVal = this._parseTime(expectedTimeStr);
     const targetTimeVal = expectedTimeVal + 5; // เผื่อเวลา 5 นาที
 
     // กรณี Night Shift สำหรับเวลาออกงาน (work_out)
-    const wtStartVal = _parseTime(record.wt_start_time);
+    const wtStartVal = this._parseTime(record.wt_start_time);
     if (
       isNightShift &&
       wtStartVal &&
@@ -434,7 +434,7 @@ class ForgetRequestService {
       missingItems.push({
         date: dateStr,
         type: type,
-        typeText: _mapTypeToText(type),
+        typeText: this._mapTypeToText(type),
         status: "pending",
       });
       return;
@@ -446,7 +446,7 @@ class ForgetRequestService {
     if (isToday) {
       // สำหรับวันนี้: ถ้าไม่ใช่การตรวจสอบความสอดคล้อง ให้เช็ค Time Window
       if (!isConsistencyCheck) {
-        shouldSkip = _isTimeWindowNotReached({
+        shouldSkip = this._isTimeWindowNotReached({
           expectedTimeStr,
           record,
           currentTimeVal,
@@ -465,7 +465,7 @@ class ForgetRequestService {
     missingItems.push({
       date: dateStr,
       type: type,
-      typeText: _mapTypeToText(type),
+      typeText: this._mapTypeToText(type),
       status: "missing",
     });
   };
@@ -551,7 +551,7 @@ class ForgetRequestService {
     // 1. Work In
     const forceWorkIn =
       !!record.end_time || !!record.break_start_time || !!record.break_end_time;
-    _verifyTimeSlot({
+    this._verifyTimeSlot({
       type: "work_in",
       actualValue: record.start_time,
       expectedTimeStr: record.wt_start_time,
@@ -566,7 +566,7 @@ class ForgetRequestService {
     const shouldCheckBreak = record.is_break === 1 || hasBreakActivity;
     if (shouldCheckBreak) {
       const forceBreakIn = !!record.break_end_time;
-      _verifyTimeSlot({
+      this._verifyTimeSlot({
         type: "break_in",
         actualValue: record.break_start_time,
         expectedTimeStr: record.wt_break_start_time,
@@ -577,7 +577,7 @@ class ForgetRequestService {
       });
 
       const forceBreakOut = !!record.break_start_time;
-      _verifyTimeSlot({
+      this._verifyTimeSlot({
         type: "break_out",
         actualValue: record.break_end_time,
         expectedTimeStr: record.wt_break_end_time,
@@ -589,7 +589,7 @@ class ForgetRequestService {
     }
 
     // 3. Work Out
-    _verifyTimeSlot({
+    this._verifyTimeSlot({
       type: "work_out",
       actualValue: record.end_time,
       expectedTimeStr: record.wt_end_time,
@@ -600,7 +600,7 @@ class ForgetRequestService {
     });
 
     // 4. OT
-    _verifyOT(record, dateStr, pendingMap, missingItems);
+    this._verifyOT(record, dateStr, pendingMap, missingItems);
   };
 
   // ==============================================================
@@ -648,7 +648,7 @@ class ForgetRequestService {
 
     // 3. สร้าง requestId ในรูปแบบ REQ-YYYYMMDD-XXXX (4 chars alphanumeric uppercase)
     const datePart = normalizedDate.replaceAll("-", "");
-    const requestId = await _generateUniqueRequestId(datePart);
+    const requestId = await this._generateUniqueRequestId(datePart);
 
     // 4. บันทึกคำขอ
     await ForgetRequest.create({
@@ -672,7 +672,7 @@ class ForgetRequestService {
       );
       if (existingRecord) {
         // 1. ลองดึงตามประเภทก่อน (เช่น ขอแก้เวลาออก ก็ควรโชว์เวลาออกเดิม ถ้ามี)
-        const fieldName = _mapTypeToField(type);
+        const fieldName = this._mapTypeToField(type);
         if (fieldName && existingRecord[fieldName]) {
           originalTime = normalizeTime(existingRecord[fieldName]).substring(
             0,
@@ -687,7 +687,7 @@ class ForgetRequestService {
 
     // 6. ส่งอีเมลหา HR
     const company = await Companies.findById(companyId);
-    await _sendForgetRequestEmail(company, employee, {
+    await this._sendForgetRequestEmail(company, employee, {
       normalizedDate,
       normalizedTime,
       type,
@@ -698,7 +698,7 @@ class ForgetRequestService {
     });
 
     // 7. ส่งแจ้งเตือน LINE ให้พนักงาน (Pending)
-    await _sendPendingLineMessage(
+    await this._sendPendingLineMessage(
       lineUserId,
       normalizedDate,
       normalizedTime,
@@ -711,7 +711,7 @@ class ForgetRequestService {
   // ============================================================
   // ฟังก์ชันสำหรับดึงข้อมูลคำขอจาก Token (สำหรับหน้าอนุมัติ)
   getRequestInfo = async (token) => {
-    const decoded = await _getDecodedToken(token);
+    const decoded = await this._getDecodedToken(token);
     const { requestId } = decoded;
     const request = await ForgetRequest.findByRequestId(requestId);
 
@@ -728,7 +728,7 @@ class ForgetRequestService {
     // Ensure date string is normalized (handles Date objects returned by DB)
     const dateStr = normalizeDate(request.forget_date);
 
-    const currentTime = await _getCurrentTime(
+    const currentTime = await this._getCurrentTime(
       request.employee_id,
       dateStr,
       request.timestamp_type
@@ -740,7 +740,7 @@ class ForgetRequestService {
       employeeName: employee ? employee.name : "Unknown",
       date: formatDateThai(request.forget_date),
       time: request.forget_time ? request.forget_time.substring(0, 5) : "-",
-      type: _mapTypeToText(request.timestamp_type),
+      type: this._mapTypeToText(request.timestamp_type),
       reason: request.reason || "-",
       status: request.status,
       approved_at: request.approved_at || null,
@@ -751,12 +751,12 @@ class ForgetRequestService {
   // ============================================================
   // ฟังก์ชันสำหรับอนุมัติ/ปฏิเสธ คำขอ
   processApproval = async ({ token, action, reason }) => {
-    const { request, employee } = await _getRequestFromToken(token);
+    const { request, employee } = await this._getRequestFromToken(token);
 
     if (action === "approve") {
-      await _handleApproval(request, employee);
+      await this._handleApproval(request, employee);
     } else if (action === "reject") {
-      await _handleRejection(request, employee, reason);
+      await this._handleRejection(request, employee, reason);
     } else {
       throw new AppError("Invalid Action", 400);
     }
@@ -809,7 +809,7 @@ class ForgetRequestService {
     for (const record of records) {
       const dateStr = normalizeDate(record.date);
 
-      if (_shouldSkipRecord(record, employee, dateStr)) continue;
+      if (this._shouldSkipRecord(record, employee, dateStr)) continue;
 
       const isToday = dateStr === endDate;
       const context = {
@@ -820,7 +820,7 @@ class ForgetRequestService {
         missingItems,
       };
 
-      _processRecord(record, dateStr, isToday, context);
+      this._processRecord(record, dateStr, isToday, context);
     }
 
     // เรียงลำดับตามวันที่ (ล่าสุดขึ้นก่อน)
