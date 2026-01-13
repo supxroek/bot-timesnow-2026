@@ -61,7 +61,7 @@ class LineProvider {
       try {
         await this.linkRichMenu(
           source.userId,
-          "richmenu-30b97e17ac5d13d9cbe70bd9a0a04722"
+          "richmenu-30d0d399cd20ca690954ab31c8103eec"
         );
         console.log(
           `เชื่อมต่อ Rich Menu สำหรับสมาชิกกับผู้ใช้ ${source.userId} เรียบร้อยแล้ว`

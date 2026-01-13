@@ -83,7 +83,7 @@ function pickExamples() {
 function greetingFlex() {
   const bubble = buildBubble({
     title: "สวัสดี 👋",
-    subTitle: { text: "ยินดีต้อนรับสู่ Leave Hub", color: "#1DB446" },
+    subTitle: { text: "ยินดีต้อนรับสู่ Time Now", color: "#1DB446" },
     contents: [
       {
         type: "text",
