@@ -125,6 +125,45 @@ class ReportService {
     const startDateStr = cycleStart.format("YYYY-MM-DD");
     const endDateStr = cycleEnd.format("YYYY-MM-DD");
 
+    const attendancePromise = reportModel.getAttendanceRecords(
+      employeeId,
+      startDateStr,
+      endDateStr
+    );
+    const forgetPromise = reportModel.getForgetRequests(
+      employeeId,
+      startDateStr,
+      endDateStr
+    );
+    const workingTimePromise = reportModel.getAllWorkingTime(companyId);
+
+    // Conditional Fetching from Leave Hub
+    const leavePromise = leaveHubCompanyId
+      ? reportModel.getLeaveRequests(
+          passportId,
+          leaveHubCompanyId,
+          startDateStr,
+          endDateStr
+        )
+      : Promise.resolve([]);
+
+    const swapPromise = leaveHubCompanyId
+      ? reportModel.getSwapRequests(
+          passportId,
+          leaveHubCompanyId,
+          startDateStr,
+          endDateStr
+        )
+      : Promise.resolve([]);
+
+    const holidayPromise = leaveHubCompanyId
+      ? reportModel.getPublicHolidays(
+          leaveHubCompanyId,
+          startDateStr,
+          endDateStr
+        )
+      : Promise.resolve([]);
+
     const [
       attendance,
       forgetRequests,
@@ -133,26 +172,12 @@ class ReportService {
       workingTimes,
       publicHolidays,
     ] = await Promise.all([
-      reportModel.getAttendanceRecords(employeeId, startDateStr, endDateStr),
-      reportModel.getForgetRequests(employeeId, startDateStr, endDateStr),
-      reportModel.getLeaveRequests(
-        passportId,
-        leaveHubCompanyId,
-        startDateStr,
-        endDateStr
-      ),
-      reportModel.getSwapRequests(
-        passportId,
-        leaveHubCompanyId,
-        startDateStr,
-        endDateStr
-      ),
-      reportModel.getAllWorkingTime(companyId),
-      reportModel.getPublicHolidays(
-        leaveHubCompanyId,
-        startDateStr,
-        endDateStr
-      ),
+      attendancePromise,
+      forgetPromise,
+      leavePromise,
+      swapPromise,
+      workingTimePromise,
+      holidayPromise,
     ]);
 
     return {
@@ -178,6 +203,7 @@ class ReportService {
       totalAbsent: 0,
       leaveDetails: {},
       swapCount: 0,
+      totalOTHours: 0,
     };
     const dailyStatuses = [];
     let current = cycleStart;
@@ -224,6 +250,9 @@ class ReportService {
       stats.leaveDetails[result.leaveType] =
         (stats.leaveDetails[result.leaveType] || 0) + 1;
     }
+    if (result.otHours) {
+      stats.totalOTHours = (stats.totalOTHours || 0) + result.otHours;
+    }
     if (result.isWork) {
       stats.totalWorkDays++;
       if (result.isLate) {
@@ -234,6 +263,9 @@ class ReportService {
     if (result.isAbsent) stats.totalAbsent++;
   }
 
+  /**
+   * Evaluate the status for a single day
+   */
   /**
    * Evaluate the status for a single day
    */
@@ -249,7 +281,7 @@ class ReportService {
     } = data;
     const { employeeId, dayOff } = employeeInfo;
 
-    // 1. Check Swap
+    // 1. Check Swap (Compensatory Day) - Highest Priority
     const swap = swaps.find(
       (s) => dayjs(s.new_date).format("YYYY-MM-DD") === dateStr
     );
@@ -262,24 +294,25 @@ class ReportService {
       };
     }
 
-    // 2. Check Public Holiday (New)
+    // 2. Prepare Context (Holiday, Day Off, Shift)
     const holiday = publicHolidays.find((h) => {
-      // Handle potential date format differences from DB
       return (
         h.date === dateStr || dayjs(h.date).format("YYYY-MM-DD") === dateStr
       );
     });
-    if (holiday) {
-      return {
-        statusText: holiday.name, // Display Holiday Name
-        color: "#10b981",
-        isHoliday: true,
-        dateStr,
-      };
-    }
 
-    // 3. Check Leave (Full Day)
-    // Filter leaves for this day
+    const shift = this.MatchShift(workingTimes, employeeId, currentDate);
+    const dayName = currentDate.format("dddd");
+    const isDayOff = !shift && dayOff?.includes(dayName);
+
+    // 3. Check Attendance (Worked) - Priority: Work > Holiday > Leave > Day Off
+    const att = attendance.find(
+      (a) => dayjs(a.created_at).format("YYYY-MM-DD") === dateStr
+    );
+    const fag = forgetRequests.find(
+      (f) => dayjs(f.forget_date).format("YYYY-MM-DD") === dateStr
+    );
+
     const dailyLeaves = leaves.filter((l) => {
       const s = dayjs(l.start_date);
       const e = dayjs(l.end_date);
@@ -287,9 +320,31 @@ class ReportService {
       return (d.isSame(s) || d.isAfter(s)) && (d.isSame(e) || d.isBefore(e));
     });
 
-    // Check for Full Day Leave (assuming null start_time means full day)
-    const fullDayLeave = dailyLeaves.find((l) => !l.start_time);
+    if (att || fag) {
+      const hourlyLeaves = dailyLeaves.filter((l) => l.start_time);
+      return this.calculateWorkStatus(
+        att,
+        fag,
+        shift,
+        dateStr,
+        hourlyLeaves,
+        holiday,
+        isDayOff
+      );
+    }
 
+    // 4. Check Public Holiday (No Work)
+    if (holiday) {
+      return {
+        statusText: holiday.name,
+        color: "#10b981",
+        isHoliday: true,
+        dateStr,
+      };
+    }
+
+    // 5. Check Full Day Leave
+    const fullDayLeave = dailyLeaves.find((l) => !l.start_time);
     if (fullDayLeave) {
       return {
         statusText: `ลา (${fullDayLeave.leave_type_name})`,
@@ -300,37 +355,12 @@ class ReportService {
       };
     }
 
-    // 4. Check Attendance / Forget Request
-    const att = attendance.find(
-      (a) => dayjs(a.created_at).format("YYYY-MM-DD") === dateStr
-    );
-    const fag = forgetRequests.find(
-      (f) => dayjs(f.forget_date).format("YYYY-MM-DD") === dateStr
-    );
-
-    if (att || fag) {
-      // Pass hourly leaves if any
-      const hourlyLeaves = dailyLeaves.filter((l) => l.start_time);
-      return this.calculateWorkStatus(
-        att,
-        fag,
-        workingTimes,
-        employeeInfo,
-        currentDate,
-        dateStr,
-        hourlyLeaves
-      );
-    }
-
-    // 5. Check Day Off
-    const shift = this.MatchShift(workingTimes, employeeId, currentDate);
-    const dayName = currentDate.format("dddd");
-
-    if (!shift && dayOff?.includes(dayName)) {
+    // 6. Check Day Off
+    if (isDayOff) {
       return { statusText: "วันหยุด", color: "#6b7280", dateStr };
     }
 
-    // 6. Default: Absent or Future
+    // 7. Default: Absent or Future
     if (currentDate.isAfter(today)) {
       return { statusText: "-", color: "#d1d5db", dateStr };
     }
@@ -344,69 +374,122 @@ class ReportService {
   }
 
   /**
-   * Calculate work and late status with precise logic
+   * Calculate work status including OT, Late, and Hourly Leave
    */
   calculateWorkStatus(
     att,
     fag,
-    workingTimes,
-    employeeInfo,
-    currentDate,
+    shift,
     dateStr,
-    hourlyLeaves = []
+    hourlyLeaves = [],
+    holiday = null,
+    isDayOff = false
   ) {
-    const { employeeId } = employeeInfo;
     let statusText = "มาทำงาน";
-    let color = "#3b82f6";
-    let isLate = false;
+    let color = "#3b82f6"; // Blue
     let lateMinutes = 0;
+    let otHours = 0;
 
-    const shift = this.MatchShift(workingTimes, employeeId, currentDate);
-    if (shift?.start_time) {
-      // Free Time Support: If shift.free_time === 1, skip late check
-      // Note: free_time is part of workingTime definition
-      if (Number(shift.free_time) === 1) {
-        return {
-          statusText,
-          color,
-          isWork: true,
-          isLate: false,
-          lateMinutes: 0,
-          dateStr,
-        };
+    // 1. Context Override (Work on Holiday / Day Off)
+    if (holiday) {
+      statusText = `วันหยุด (${holiday.name}) มาทำงาน`; // Holiday (Name) Worked ?? Just "Holiday (Worked)"
+      // Or "HolidayName (Worked)"
+      statusText = `${holiday.name} (มาทำงาน)`;
+      color = "#10b981"; // Green to indicate good? Or Blue? Requirement: "Show Holiday (Worked)"
+    } else if (isDayOff) {
+      statusText = "วันหยุด (มาทำงาน)";
+      color = "#10b981";
+    }
+
+    // 2. OT Calculation
+    // att.ot_start_time / att.ot_end_time provided by Time Now timestamp_records
+    if (att?.ot_start_time && att.ot_end_time) {
+      const otStart = dayjs(`${dateStr}T${att.ot_start_time}`);
+      const otEnd = dayjs(`${dateStr}T${att.ot_end_time}`);
+
+      // Handle PM to AM OT?? Usually OT is after work or before work.
+      // Assuming same day for simplicity unless we see date.
+      // Safe to use diff. If end is before start, add 1 day to end.
+      let diff = otEnd.diff(otStart, "hour", true);
+      if (diff < 0) {
+        diff = otEnd.add(1, "day").diff(otStart, "hour", true);
       }
 
+      if (diff > 0) {
+        otHours = Number.parseFloat(diff.toFixed(2)); // 2 decimal places? User said "2 hrs"
+        // Let's use 1 decimal or integer if user wants "2 hrs".
+        // Report usually allows decimals.
+        // User Example: "+OT 2 ชม."
+        const displayOT = Number.isInteger(diff) ? diff : diff.toFixed(1);
+        statusText += ` (+OT ${displayOT} ชม.)`;
+      }
+    }
+
+    // 3. Late Calculation
+    if (shift?.start_time && Number(shift.free_time) !== 1) {
       const checkInTime = att?.start_time || fag?.forget_time;
 
       if (checkInTime) {
         let shiftStart = dayjs(`${dateStr}T${shift.start_time}`);
         const actualStart = dayjs(`${dateStr}T${checkInTime}`);
 
-        // Hourly Leave Adjustment
-        // If there's an hourly leave starting at shift start, adjust shiftStart
-        const startLeave = hourlyLeaves.find((l) => {
-          if (!l.start_time) return false;
-          // Simple string match for HH:mm
+        // Hourly Leave (Morning) Logic
+        // Check if there is a leave that ends after shift start and before shift end?
+        // Requirement: "Leave morning (before work) -> Shift Start adjust to Leave End"
+        const morningLeave = hourlyLeaves.find((l) => {
+          // Assume l.start_time / l.end_time exists
+          // Logic: Leave Start <= Shift Start AND Leave End > Shift Start
+          if (!l.start_time || !l.end_time) return false;
+
+          // Convert to times on this day
+          const lStart = dayjs(`${dateStr}T${l.start_time}`);
+          const lEnd = dayjs(`${dateStr}T${l.end_time}`);
+
+          // Leave covers the start of the shift
           return (
-            l.start_time.substring(0, 5) === shift.start_time.substring(0, 5)
+            (lStart.isBefore(shiftStart) || lStart.isSame(shiftStart)) &&
+            lEnd.isAfter(shiftStart)
           );
         });
 
-        if (startLeave) {
-          shiftStart = dayjs(`${dateStr}T${startLeave.end_time}`);
-          // Optional: You could note the hourly leave in status text
+        if (morningLeave) {
+          shiftStart = dayjs(`${dateStr}T${morningLeave.end_time}`);
         }
 
         if (actualStart.isAfter(shiftStart)) {
-          lateMinutes = actualStart.diff(shiftStart, "minute");
-          if (lateMinutes > 0) {
-            isLate = true;
+          // Allow small buffer? 1 min? No, strict.
+          const diffMin = actualStart.diff(shiftStart, "minute");
+          if (diffMin > 0) {
+            lateMinutes = diffMin;
             statusText += ` (สาย ${lateMinutes} น.)`;
+            // Only flag late if not holiday/dayoff?
+            // Normally if you work on holiday, late is late.
           }
         }
       }
     }
-    return { statusText, color, isWork: true, isLate, lateMinutes, dateStr };
+
+    // 4. Hourly Leave Display
+    if (hourlyLeaves.length > 0) {
+      hourlyLeaves.forEach((l) => {
+        // Simplify display: (Leave 13:00-15:00)
+        if (l.start_time && l.end_time) {
+          const startF = l.start_time.substring(0, 5);
+          const endF = l.end_time.substring(0, 5);
+          statusText += `\n(ลา ${startF}-${endF})`;
+        }
+      });
+    }
+
+    return {
+      statusText,
+      color,
+      isWork: true,
+      isLate: lateMinutes > 0,
+      lateMinutes,
+      otHours,
+      dateStr,
+    };
   }
 
   // logic reused/adapted from workingTime.model.js

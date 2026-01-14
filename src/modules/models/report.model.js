@@ -46,6 +46,8 @@ class ReportModel {
    * @returns {Promise<Array>}
    */
   async getPublicHolidays(leaveHubCompanyId, startDate, endDate) {
+    if (!leaveHubCompanyId) return []; // Skip if not linked to Leave Hub
+
     const sql = `
         SELECT *
         FROM leaveHub.holidays
@@ -104,9 +106,11 @@ class ReportModel {
    * @returns {Promise<Array>}
    */
   async getLeaveRequests(passportId, leaveHubCompanyId, startDate, endDate) {
+    if (!leaveHubCompanyId) return []; // Skip if not linked to Leave Hub
+
     // Assuming DB name is 'leaveHub' based on requirements
     const sql = `
-        SELECT lr.*, lt.name as leave_type_name
+        SELECT lr.*, lt.name as leave_type_name, lt.allow_hourly_leave
         FROM leaveHub.leave_requests lr
         JOIN leaveHub.employees le ON lr.employeeId = le.id
         JOIN leaveHub.leave_types lt ON lr.leave_type_id = lt.id
@@ -141,6 +145,8 @@ class ReportModel {
    * @returns {Promise<Array>}
    */
   async getSwapRequests(passportId, leaveHubCompanyId, startDate, endDate) {
+    if (!leaveHubCompanyId) return []; // Skip if not linked to Leave Hub
+
     const sql = `
         SELECT sr.*
         FROM leaveHub.swap_requests sr

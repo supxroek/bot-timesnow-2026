@@ -217,20 +217,31 @@ const createReportFlex = (data) => {
     if (day.status.includes("สาย")) {
       rowColor = "#c2410c"; // Orange
       statusWeight = "bold";
-    } else if (day.status.includes("ลา")) {
+    } else if (day.status.includes("ลา") && !day.status.includes("มาทำงาน")) {
+      // "Leave" matches but if "Worked (Leave 2 hrs)" -> maybe Work color?
+      // Assuming "ลา" usually means full day leave unless combined with work status.
+      // But my new logic appends "(Leave ...)" to work status.
+      // So if status is "มาทำงาน ... (ลา ...)"
+      // If late, it's orange. If not late but leaves early?
+      // If "Worked", it enters here if "ลา" is present?
+      // "มาทำงาน (ลา...)" -> Hits "ลา".
+      // I should allow "มาทำงาน" to color it Green if not Late?
+      // But "Leave" usually implies Yellow.
+      // Let's refine:
       rowColor = "#ca8a04"; // Yellow
     } else if (day.status.includes("ขาด") || day.status.includes("ลืม")) {
       rowColor = "#dc2626"; // Red
       statusWeight = "bold";
       bgColor = "#fef2f2"; // Light Red Bg
+    } else if (day.status.includes("มาทำงาน")) {
+      rowColor = "#059669"; // Green
+      // Covers "วันหยุด (มาทำงาน)" and normal "มาทำงาน"
     } else if (
       day.status.includes("หยุด") ||
       day.status.includes("ชดเชย") ||
       day.isHoliday
     ) {
       rowColor = "#94a3b8"; // Muted Gray
-    } else if (day.status.includes("มาทำงาน")) {
-      rowColor = "#059669"; // Green
     } else if (day.status === "-") {
       rowColor = "#cbd5e1"; // Very light gray
     }
@@ -283,15 +294,31 @@ const createReportFlex = (data) => {
     { type: "separator", margin: "lg", color: "#f1f5f9" },
 
     // 2. Main Stats
+    // Row 1: Work & OT
     {
       type: "box",
       layout: "horizontal",
       spacing: "md",
-      paddingTop: "lg",
-      paddingBottom: "lg",
+      paddingTop: "md",
+      paddingBottom: "sm",
       contents: [
         statBox("วันทำงาน", stats.totalWorkDays, "#3b82f6"),
         { type: "separator", color: "#f1f5f9" },
+        statBox(
+          "OT (ชม.)",
+          stats.totalOTHours || 0,
+          stats.totalOTHours > 0 ? "#10b981" : "#cbd5e1"
+        ),
+      ],
+    },
+    // Row 2: Leave & Absent
+    {
+      type: "box",
+      layout: "horizontal",
+      spacing: "md",
+      paddingTop: "sm",
+      paddingBottom: "lg",
+      contents: [
         statBox("วันลา", stats.totalLeaves, hasLeave ? "#f59e0b" : "#cbd5e1"),
         { type: "separator", color: "#f1f5f9" },
         statBox(
