@@ -25,15 +25,35 @@ class ReportModel {
    * @returns {Promise<object>}
    */
   async getEmployeeAndCompany(lineUserId) {
+    // Added start_date. free_time is in workingTime table, so we don't fetch it here.
     const sql = `
         SELECT e.id as employeeId, e.name as employeeName, e.ID_or_Passport_Number, e.dayOff,
-               e.companyId, c.report_date, c.leave_hub_company_id
+               e.companyId, c.report_date, c.leave_hub_company_id,
+               e.start_date
         FROM employees e
         JOIN companies c ON e.companyId = c.id
         WHERE e.lineUserId = ?
     `;
     const [rows] = await db.query(sql, [lineUserId]);
     return rows[0];
+  }
+
+  /**
+   * Get Public Holidays (Leave Hub - Cross DB)
+   * @param {number} leaveHubCompanyId
+   * @param {string} startDate
+   * @param {string} endDate
+   * @returns {Promise<Array>}
+   */
+  async getPublicHolidays(leaveHubCompanyId, startDate, endDate) {
+    const sql = `
+        SELECT *
+        FROM leaveHub.holidays
+        WHERE companyId = ?
+        AND date BETWEEN ? AND ?
+    `;
+    const [rows] = await db.query(sql, [leaveHubCompanyId, startDate, endDate]);
+    return rows;
   }
 
   /**

@@ -34,7 +34,6 @@ class ReportService {
       companyId,
       report_date,
       leave_hub_company_id,
-      dayOff,
     } = info;
 
     // 2. Determine Date Period
@@ -44,13 +43,15 @@ class ReportService {
     );
 
     // 3. Fetch All Data
-    const data = await this.fetchReportData(
-      employeeId,
-      ID_or_Passport_Number,
-      companyId,
-      leave_hub_company_id,
-      cycleStart,
-      cycleEnd
+    const data = await this.runWithRetry(() =>
+      this.fetchReportData(
+        employeeId,
+        ID_or_Passport_Number,
+        companyId,
+        leave_hub_company_id,
+        cycleStart,
+        cycleEnd
+      )
     );
 
     // 4. Calculate Stats & Daily Statuses
@@ -58,8 +59,7 @@ class ReportService {
       cycleStart,
       cycleEnd,
       data,
-      employeeId,
-      dayOff
+      info // Pass full info object (includes start_date, free_time)
     );
 
     return {
@@ -70,6 +70,28 @@ class ReportService {
       stats,
       dailyStatuses,
     };
+  }
+
+  /**
+   * Resilience: Retry Mechanism for Deadlocks
+   * @param {Function} task
+   * @param {number} retries
+   */
+  async runWithRetry(task, retries = 3) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        return await task();
+      } catch (error) {
+        // MySQL Deadlock Error Code: 1213
+        if (error.code === "ER_LOCK_DEADLOCK" || error.errno === 1213) {
+          if (i === retries - 1) throw error;
+          console.warn(`Deadlock detected. Retrying... (${i + 1}/${retries})`);
+          await new Promise((res) => setTimeout(res, 100 * (i + 1))); // Backoff
+        } else {
+          throw error;
+        }
+      }
+    }
   }
 
   /**
@@ -103,32 +125,51 @@ class ReportService {
     const startDateStr = cycleStart.format("YYYY-MM-DD");
     const endDateStr = cycleEnd.format("YYYY-MM-DD");
 
-    const [attendance, forgetRequests, leaves, swaps, workingTimes] =
-      await Promise.all([
-        reportModel.getAttendanceRecords(employeeId, startDateStr, endDateStr),
-        reportModel.getForgetRequests(employeeId, startDateStr, endDateStr),
-        reportModel.getLeaveRequests(
-          passportId,
-          leaveHubCompanyId,
-          startDateStr,
-          endDateStr
-        ),
-        reportModel.getSwapRequests(
-          passportId,
-          leaveHubCompanyId,
-          startDateStr,
-          endDateStr
-        ),
-        reportModel.getAllWorkingTime(companyId),
-      ]);
+    const [
+      attendance,
+      forgetRequests,
+      leaves,
+      swaps,
+      workingTimes,
+      publicHolidays,
+    ] = await Promise.all([
+      reportModel.getAttendanceRecords(employeeId, startDateStr, endDateStr),
+      reportModel.getForgetRequests(employeeId, startDateStr, endDateStr),
+      reportModel.getLeaveRequests(
+        passportId,
+        leaveHubCompanyId,
+        startDateStr,
+        endDateStr
+      ),
+      reportModel.getSwapRequests(
+        passportId,
+        leaveHubCompanyId,
+        startDateStr,
+        endDateStr
+      ),
+      reportModel.getAllWorkingTime(companyId),
+      reportModel.getPublicHolidays(
+        leaveHubCompanyId,
+        startDateStr,
+        endDateStr
+      ),
+    ]);
 
-    return { attendance, forgetRequests, leaves, swaps, workingTimes };
+    return {
+      attendance,
+      forgetRequests,
+      leaves,
+      swaps,
+      workingTimes,
+      publicHolidays,
+    };
   }
 
   /**
    * Process daily records to generate stats and statuses
    */
-  processDailyStats(cycleStart, cycleEnd, data, employeeId, dayOff) {
+  processDailyStats(cycleStart, cycleEnd, data, employeeInfo) {
+    const { start_date } = employeeInfo;
     const stats = {
       totalWorkDays: 0,
       totalLeaves: 0,
@@ -141,15 +182,23 @@ class ReportService {
     const dailyStatuses = [];
     let current = cycleStart;
     const today = dayjs();
+    const startDateObj = start_date ? dayjs(start_date) : null;
 
     while (current.isBefore(cycleEnd) || current.isSame(cycleEnd, "day")) {
-      const result = this.evaluateDayStatus(
-        current,
-        data,
-        employeeId,
-        dayOff,
-        today
-      );
+      // Resilience: Valid Start Date Check
+      // If current date is before employment start date, status is "-"
+      if (startDateObj && current.isBefore(startDateObj, "day")) {
+        dailyStatuses.push({
+          date: current.format("DD/MM/YYYY"),
+          rawDate: current.format("YYYY-MM-DD"),
+          status: "-",
+          color: "#d1d5db",
+        });
+        current = current.add(1, "day");
+        continue;
+      }
+
+      const result = this.evaluateDayStatus(current, data, employeeInfo, today);
       this.accumulateStats(stats, result);
 
       dailyStatuses.push({
@@ -188,9 +237,17 @@ class ReportService {
   /**
    * Evaluate the status for a single day
    */
-  evaluateDayStatus(currentDate, data, employeeId, dayOff, today) {
+  evaluateDayStatus(currentDate, data, employeeInfo, today) {
     const dateStr = currentDate.format("YYYY-MM-DD");
-    const { swaps, leaves, attendance, forgetRequests, workingTimes } = data;
+    const {
+      swaps,
+      leaves,
+      attendance,
+      forgetRequests,
+      workingTimes,
+      publicHolidays,
+    } = data;
+    const { employeeId, dayOff } = employeeInfo;
 
     // 1. Check Swap
     const swap = swaps.find(
@@ -205,24 +262,45 @@ class ReportService {
       };
     }
 
-    // 2. Check Leave
-    const leave = leaves.find((l) => {
+    // 2. Check Public Holiday (New)
+    const holiday = publicHolidays.find((h) => {
+      // Handle potential date format differences from DB
+      return (
+        h.date === dateStr || dayjs(h.date).format("YYYY-MM-DD") === dateStr
+      );
+    });
+    if (holiday) {
+      return {
+        statusText: holiday.name, // Display Holiday Name
+        color: "#10b981",
+        isHoliday: true,
+        dateStr,
+      };
+    }
+
+    // 3. Check Leave (Full Day)
+    // Filter leaves for this day
+    const dailyLeaves = leaves.filter((l) => {
       const s = dayjs(l.start_date);
       const e = dayjs(l.end_date);
       const d = dayjs(dateStr);
       return (d.isSame(s) || d.isAfter(s)) && (d.isSame(e) || d.isBefore(e));
     });
-    if (leave) {
+
+    // Check for Full Day Leave (assuming null start_time means full day)
+    const fullDayLeave = dailyLeaves.find((l) => !l.start_time);
+
+    if (fullDayLeave) {
       return {
-        statusText: `ลา (${leave.leave_type_name})`,
+        statusText: `ลา (${fullDayLeave.leave_type_name})`,
         color: "#f59e0b",
         isLeave: true,
-        leaveType: leave.leave_type_name,
+        leaveType: fullDayLeave.leave_type_name,
         dateStr,
       };
     }
 
-    // 3. Check Attendance
+    // 4. Check Attendance / Forget Request
     const att = attendance.find(
       (a) => dayjs(a.created_at).format("YYYY-MM-DD") === dateStr
     );
@@ -231,17 +309,20 @@ class ReportService {
     );
 
     if (att || fag) {
+      // Pass hourly leaves if any
+      const hourlyLeaves = dailyLeaves.filter((l) => l.start_time);
       return this.calculateWorkStatus(
         att,
         fag,
         workingTimes,
-        employeeId,
+        employeeInfo,
         currentDate,
-        dateStr
+        dateStr,
+        hourlyLeaves
       );
     }
 
-    // 4. Check Day Off
+    // 5. Check Day Off
     const shift = this.MatchShift(workingTimes, employeeId, currentDate);
     const dayName = currentDate.format("dddd");
 
@@ -249,7 +330,7 @@ class ReportService {
       return { statusText: "วันหยุด", color: "#6b7280", dateStr };
     }
 
-    // 5. Default: Absent or Future
+    // 6. Default: Absent or Future
     if (currentDate.isAfter(today)) {
       return { statusText: "-", color: "#d1d5db", dateStr };
     }
@@ -263,16 +344,18 @@ class ReportService {
   }
 
   /**
-   * Calculate work and late status
+   * Calculate work and late status with precise logic
    */
   calculateWorkStatus(
     att,
     fag,
     workingTimes,
-    employeeId,
+    employeeInfo,
     currentDate,
-    dateStr
+    dateStr,
+    hourlyLeaves = []
   ) {
+    const { employeeId } = employeeInfo;
     let statusText = "มาทำงาน";
     let color = "#3b82f6";
     let isLate = false;
@@ -280,16 +363,46 @@ class ReportService {
 
     const shift = this.MatchShift(workingTimes, employeeId, currentDate);
     if (shift?.start_time) {
+      // Free Time Support: If shift.free_time === 1, skip late check
+      // Note: free_time is part of workingTime definition
+      if (Number(shift.free_time) === 1) {
+        return {
+          statusText,
+          color,
+          isWork: true,
+          isLate: false,
+          lateMinutes: 0,
+          dateStr,
+        };
+      }
+
       const checkInTime = att?.start_time || fag?.forget_time;
 
       if (checkInTime) {
-        const shiftStart = dayjs(`${dateStr}T${shift.start_time}`);
+        let shiftStart = dayjs(`${dateStr}T${shift.start_time}`);
         const actualStart = dayjs(`${dateStr}T${checkInTime}`);
+
+        // Hourly Leave Adjustment
+        // If there's an hourly leave starting at shift start, adjust shiftStart
+        const startLeave = hourlyLeaves.find((l) => {
+          if (!l.start_time) return false;
+          // Simple string match for HH:mm
+          return (
+            l.start_time.substring(0, 5) === shift.start_time.substring(0, 5)
+          );
+        });
+
+        if (startLeave) {
+          shiftStart = dayjs(`${dateStr}T${startLeave.end_time}`);
+          // Optional: You could note the hourly leave in status text
+        }
 
         if (actualStart.isAfter(shiftStart)) {
           lateMinutes = actualStart.diff(shiftStart, "minute");
-          isLate = true;
-          statusText += ` (สาย ${lateMinutes} น.)`;
+          if (lateMinutes > 0) {
+            isLate = true;
+            statusText += ` (สาย ${lateMinutes} น.)`;
+          }
         }
       }
     }

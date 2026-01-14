@@ -1,8 +1,6 @@
 const lineProvider = require("../../../shared/providers/line.provider");
 const reportService = require("../../services/report.service");
-const {
-  attendanceReport,
-} = require("../../../shared/templates/attendance.flex");
+const { createReportFlex } = require("../../../shared/templates/flex/modules/report.flex");
 
 class ReportCommand {
   // ==============================================================
@@ -21,7 +19,7 @@ class ReportCommand {
     // เรียกใช้บริการเพื่อดึงข้อมูลรายงานการลงเวลา
     const reportData = await reportService.generateMonthlyReport(userId);
     // สร้างข้อความสรุปรายงานการลงเวลา
-    const reportMessage = attendanceReport(reportData);
+    const reportMessage = createReportFlex(reportData);
     // ส่งข้อความสรุปรายงานการลงเวลาให้กับผู้ใช้
     return lineProvider.replyOrPush(event, reportMessage);
   }
