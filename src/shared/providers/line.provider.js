@@ -33,6 +33,10 @@ class LineProvider {
 
   async replyOrPush(event, messages) {
     const { replyToken, source } = event;
+    console.log("DEBUG: replyOrPush called");
+    console.log("DEBUG: replyToken:", replyToken);
+    console.log("DEBUG: source:", JSON.stringify(source));
+
     try {
       // ตรวจสอบว่า replyToken ถูกต้องหรือไม่
       if (replyToken && replyToken !== "00000000000000000000000000000000") {
@@ -61,7 +65,7 @@ class LineProvider {
       try {
         await this.linkRichMenu(
           source.userId,
-          "richmenu-30d0d399cd20ca690954ab31c8103eec"
+          "richmenu-b47531b4ce876ba726b12e8f196b028b"
         );
         console.log(
           `เชื่อมต่อ Rich Menu สำหรับสมาชิกกับผู้ใช้ ${source.userId} เรียบร้อยแล้ว`
