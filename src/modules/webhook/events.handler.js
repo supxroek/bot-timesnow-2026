@@ -4,6 +4,9 @@
 const lineProvider = require("../../shared/providers/line.provider");
 const AttendanceCommand = require("./commands/attendance.command");
 const BeaconCommand = require("./commands/beacon.command");
+const ReportCommand = require("./commands/report.command");
+
+// Import flex message templates
 const {
   greetingFlex,
   welcomeNewUserFlex,
@@ -22,24 +25,17 @@ const INTENT_HANDLERS = {
     keywords: [
       "ot in","check in","break in","break out","check out","ot out",
       "บันทึกเวลา","บันทึกเวลาเข้า","บันทึกเวลาออก","บันทึกเวลาพักเบรค","บันทึกเวลาเลิกพักเบรค","บันทึกเวลา OT เข้า","บันทึกเวลา OT ออก",
+      "เข้างาน","ออกงาน","พักเบรค","เลิกพักเบรค","OT เข้า","OT ออก",
     ],
     execute: async (event) => AttendanceCommand.handle(event),
   },
   STATUS_TODAY: {
-    keywords: [
-      "status","สรุปสถานะวันนี้","เช็คสถานะวันนี้","ดูสถานะวันนี้",
-    ],
+    keywords: ["status", "สรุปสถานะวันนี้", "เช็คสถานะวันนี้", "ดูสถานะวันนี้"],
     execute: async (event) => AttendanceCommand.statusToday(event),
   },
   HISTORY_ATTENDANCE: {
-    keywords: [
-      "history","ประวัติการลงเวลา","ดูประวัติย้อนหลัง","เช็คประวัติย้อนหลัง",
-    ],
-    execute: async (event) =>
-      lineProvider.replyOrPush(event, {
-        type: "text",
-        text: "คุณสามารถดูประวัติการลงเวลาของคุณได้ที่ [ลิงก์]",
-      }),
+    keywords: ["สรุปประวัติ","report","history","ประวัติการลงเวลา","ดูประวัติย้อนหลัง","เช็คประวัติย้อนหลัง",],
+    execute: async (event) => ReportCommand.handle(event),
   },
 };
 
