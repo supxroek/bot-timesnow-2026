@@ -4,27 +4,6 @@
 const atoms = require("../components/base-ui");
 const { buildBubble } = require("../layouts/base-layout");
 
-// small helper to render a bullet line with emoji and text
-function buildBullet(text, color) {
-  return {
-    type: "box",
-    layout: "baseline",
-    spacing: "xs",
-    contents: [
-      { type: "text", text: " ", size: "xs", flex: 0 },
-      {
-        type: "text",
-        text,
-        size: "xs",
-        color: color || "#111111",
-        wrap: true,
-        flex: 6,
-      },
-    ],
-    margin: "xs",
-  };
-}
-
 // intents keywords
 const INTENTS = {
   // General greetings and common phrases - สำหรับคำทักทายทั่วไปและวลีที่ใช้บ่อย
@@ -82,71 +61,74 @@ function pickExamples() {
 // Generic greeting bubble
 function greetingFlex() {
   const bubble = buildBubble({
-    title: "สวัสดี 👋",
-    subTitle: { text: "ยินดีต้อนรับสู่ Time Now", color: "#1DB446" },
+    title: { text: "ยินดีต้อนรับสู่ Time Now 👋" },
+    subTitle: {
+      text: "เริ่มต้นใช้งานได้ง่าย — สมัครก่อนใช้งาน",
+      color: "#1DB446",
+    },
     contents: [
-      {
-        type: "text",
-        text: "🚀 พัฒนาขึ้นเพื่อแก้ปัญหา การบันทึกเวลาเข้าออกงานแบบ Manual ที่ยุ่งยาก ช้า และผิดพลาดบ่อย",
-        wrap: true,
+      atoms.baseText({
+        text: "🚀 Time Now คือระบบบันทึกเวลาเข้า-ออกผ่าน LINE ที่ทำให้การติดตามและรายงานเวลางานเป็นเรื่องง่ายและแม่นยำ",
         size: "sm",
         color: "#6f6f6f",
+        wrap: true,
         maxLines: 3,
-        margin: "xs",
-      },
-
-      atoms.separator("sm"),
-
-      // Problems section
-      {
-        type: "box",
-        layout: "vertical",
-        spacing: "xs",
-        contents: [
-          {
-            type: "text",
-            text: "ปัญหาที่แก้",
-            weight: "bold",
-            size: "sm",
-            color: "#222222",
-            margin: "xs",
-          },
-          buildBullet("❌ เจ้าหน้าที่จดมือ → ช้า+ผิด", "#FF4B4B"),
-          buildBullet("❌ ไม่รู้เวลาจริง (สาย/ลา)", "#FF4B4B"),
-          buildBullet("❌ รายงานสรุปช้า 1-2 วัน", "#FF4B4B"),
-          buildBullet("❌ พนักงานโต้แย้งข้อมูล", "#FF4B4B"),
-        ],
-        margin: "xs",
-      },
-
-      atoms.separator("sm"),
+        margin: "sm",
+      }),
 
       // Features section
-      {
-        type: "box",
-        layout: "vertical",
-        spacing: "xs",
+      atoms.boxColumns({
         contents: [
-          {
-            type: "text",
+          atoms.baseText({
             text: "คุณสมบัติ (Features)",
             weight: "bold",
             size: "sm",
             color: "#222222",
-            margin: "xs",
-          },
-          buildBullet("✅ บันทึกเช็คอิน/เอาท์ ผ่าน LINE Beacon", "#1DB446"),
-          buildBullet("🔔 แจ้งเตือนสถานะเรียลไทม์", "#1DB446"),
-          buildBullet("📊 รายงานสรุปอัตโนมัติ", "#1DB446"),
-          buildBullet("🚀 แจ้งคำขอลืมลงเวลา", "#1DB446"),
-          buildBullet("📱 เช็คสถานะผ่าน LIFF", "#1DB446"),
+            margin: "sm",
+          }),
+
+          atoms.buildBullet("✅ บันทึกเช็คอิน/เอาท์ ผ่าน LINE Beacon"),
+          atoms.buildBullet("🔔 แจ้งเตือนสถานะเรียลไทม์"),
+          atoms.buildBullet("📊 รายงานสรุปอัตโนมัติ"),
+          atoms.buildBullet("🚀 แจ้งคำขอลืมลงเวลา"),
+          atoms.buildBullet("📱 เช็คสถานะผ่าน LIFF"),
         ],
-        margin: "xs",
-      },
+      }),
+
+      // Call-to-action: invite to register before use
+      atoms.separator("md"),
+
+      atoms.boxColumns({
+        contents: [
+          atoms.baseText({
+            text: "ก่อนเริ่มใช้งาน กรุณาสมัครสมาชิกเพื่อเชื่อมบัญชีของคุณกับระบบ",
+            weight: "bold",
+            size: "sm",
+          }),
+
+          atoms.infoRow(
+            "วิธีสมัคร:",
+            "พิมพ์ 'สมัคร' หรือกดปุ่ม 'สมัครสมาชิก' ด้านล่าง"
+          ),
+
+          // Call to Action Button
+          atoms.button({
+            action: {
+              type: "uri",
+              label: "สมัครสมาชิก",
+              uri: "https://liff.line.me/2006755947-ToZa51HW",
+            },
+          }),
+        ],
+      }),
     ],
   });
 
-  return { type: "flex", altText: "สวัสดีจาก Leave Hub", contents: bubble };
+  return {
+    type: "flex",
+    altText: "ยินดีต้อนรับสู่ Time Now — สมัครก่อนใช้งาน",
+    contents: bubble,
+  };
 }
 
 // =================================================================================

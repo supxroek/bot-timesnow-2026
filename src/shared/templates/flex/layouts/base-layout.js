@@ -6,14 +6,14 @@ const atoms = require("../components/base-ui");
 // ฟังก์ชันสร้าง Bubble layout
 function buildBubble({
   logoUrl,
-  title,
+  title = {},
   subTitle = {},
   contents = [],
   footerText = "",
 } = {}) {
   const headerContents = [
     atoms.logoCenter(logoUrl, "full", "10:2"),
-    atoms.titleText(title),
+    atoms.titleText(title.text, title.color),
   ];
 
   if (subTitle?.text) {
@@ -35,7 +35,6 @@ function buildBubble({
     layout: "vertical",
     contents: Array.isArray(contents) ? contents : [],
     spacing: "sm",
-    // paddingTop: "sm",
   };
 
   const footer = {
