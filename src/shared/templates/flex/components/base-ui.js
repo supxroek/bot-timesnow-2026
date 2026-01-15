@@ -1,6 +1,15 @@
 // src/shared/templates/flex/components/base-ui.js
 // ฟังก์ชันสำหรับสร้างองค์ประกอบพื้นฐานของ LINE Flex Messages
 
+// สร้าง Flex message
+function makeFlex(altText, contents) {
+  return {
+    type: "flex",
+    altText,
+    contents,
+  };
+}
+
 // โลโก้ที่จัดกึ่งกลาง
 function logoCenter(url, size = "full", aspectRatio = "20:5") {
   return {
@@ -23,6 +32,17 @@ function logoCenter(url, size = "full", aspectRatio = "20:5") {
     // spacing: "sm",
     // margin: "md",
     paddingBottom: "sm",
+  };
+}
+
+// hero
+function heroImage(value = {}) {
+  return {
+    type: "image",
+    url: value.url || "",
+    size: value.size || "full",
+    aspectRatio: value.aspectRatio || "20:13",
+    aspectMode: value.aspectMode || "cover",
   };
 }
 
@@ -259,7 +279,9 @@ function separator(margin = "sm") {
 }
 
 module.exports = {
+  makeFlex,
   logoCenter,
+  heroImage,
   titleText,
   subTitleText,
   baseText,
