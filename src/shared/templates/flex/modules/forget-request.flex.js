@@ -4,16 +4,16 @@ const { buildBubble } = require("../layouts/base-layout");
 const getTypeText = (type) => {
   const map = {
     work_in: "เข้างาน",
-    work_out: "ออกงาน",
-    break_in: "พักเบรค",
-    break_out: "กลับจากพัก",
+    work_out: "เลิกงาน",
+    break_in: "เริ่มพัก",
+    break_out: "เข้างาน(บ่าย)",
     ot_in: "เข้า OT",
     ot_out: "ออก OT",
   };
   return map[type] || type;
 };
 
-// 1. Pending Notification (Sent to User immediately after request)
+// 1. Pending Notification - แจ้งลืมลงเวลา (ส่งถึงผู้ใช้เมื่อส่งคำขอ)
 const forgetRequestPendingMessage = ({ date, time, type }) => {
   const typeText = getTypeText(type);
   const body = [
@@ -150,7 +150,7 @@ const forgetRequestPendingMessage = ({ date, time, type }) => {
   };
 };
 
-// 2. Approved Notification (Sent to User)
+// 2. Approved Notification - อนุมัติคำขอ (ส่งถึงผู้ใช้)
 const forgetRequestApprovedMessage = ({ date, time, type }) => {
   const typeText = getTypeText(type);
   const body = [
@@ -243,7 +243,7 @@ const forgetRequestApprovedMessage = ({ date, time, type }) => {
   };
 };
 
-// 3. Rejected Notification (Sent to User)
+// 3. Rejected Notification - ปฏิเสธคำขอ (ส่งถึงผู้ใช้)
 const forgetRequestRejectedMessage = ({ date, type, reason }) => {
   const typeText = getTypeText(type);
   const body = [

@@ -45,9 +45,9 @@ class ForgetRequestService {
   _mapTypeToText = (type) => {
     const map = {
       work_in: "เข้างาน",
-      work_out: "ออกงาน",
-      break_in: "พักเบรค",
-      break_out: "กลับจากพัก",
+      work_out: "เลิกงาน",
+      break_in: "เริ่มพัก",
+      break_out: "เข้างาน(บ่าย)",
       ot_in: "เข้า OT",
       ot_out: "ออก OT",
     };
