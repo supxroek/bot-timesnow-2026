@@ -24,12 +24,28 @@ const _smartTimeBox = (
     // 1. กรณีมีเวลาลงบันทึกแล้ว
     const formattedTime =
       timeVal.length > 5 ? timeVal.substring(0, 5) : timeVal;
+
+    // Determine color based on lateness when targetTimeVal is available
+    let timeColor = "#333333";
+    try {
+      if (targetTimeVal) {
+        const normalizedDate = dayjs(dateStr).format("YYYY-MM-DD");
+        const recorded = dayjs(`${normalizedDate} ${timeVal}`);
+        const target = dayjs(`${normalizedDate} ${targetTimeVal}`);
+        const isLateRecorded = recorded.diff(target, "minute") > 0;
+        timeColor = isLateRecorded ? "#E65100" : "#00B900";
+      }
+    } catch (error) {
+      console.error("Error determining time color:", error);
+      timeColor = "#333333";
+    }
+
     contentComponent = {
       type: "text",
       text: formattedTime,
       size: "xl",
       weight: "bold",
-      color: "#333333",
+      color: timeColor,
       align: "center",
       margin: "xs",
     };
@@ -42,16 +58,38 @@ const _smartTimeBox = (
     if (isLate) {
       // 2.1 เลยเวลาแล้ว -> แสดงปุ่มแจ้งลืม
       contentComponent = {
-        type: "button",
-        action: {
-          type: "uri",
-          label: "แจ้งลืม",
-          uri: `https://liff.line.me/2006755947-3C7TBS5B?date=${dateStr}&type=${type}`,
-        },
-        height: "sm",
-        style: "link",
-        color: "#0288D1",
-        margin: "none",
+        type: "box",
+        layout: "vertical",
+        justifyContent: "center",
+        alignItems: "center",
+        contents: [
+          {
+            type: "box",
+            layout: "baseline",
+            width: "60%",
+            justifyContent: "center",
+            contents: [
+              {
+                type: "text",
+                text: "แจ้งลืม",
+                size: "sm",
+                color: "#ffffff",
+                weight: "bold",
+                align: "center",
+              },
+            ],
+            action: {
+              type: "uri",
+              label: "แจ้งลืม",
+              uri: `https://liff.line.me/2006755947-3C7TBS5B?date=${dateStr}&type=${type}`,
+            },
+            backgroundColor: "#FF3333",
+            cornerRadius: "md",
+            paddingAll: "4px",
+            margin: "xs",
+          },
+        ],
+        margin: "xs",
       };
     } else {
       // 2.2 ยังไม่ถึงเวลาหรือยังอยู่ในช่วง Buffer -> แสดง -
@@ -99,103 +137,144 @@ const _smartTimeBox = (
 // 1. Flex: แจ้งเตือนเมื่อบันทึกเวลาสำเร็จ (และกรณีซ้ำ)
 // =============================================================================
 
-const attendanceSuccessMessage = ({
-  actionLabel,
+// Helper function to compute late minutes
+const computeLateMinutes = (time, targetTime, date) => {
+  let lateMinutes = null;
+  try {
+    if (time && targetTime) {
+      const dateStr = dayjs(date).format("YYYY-MM-DD");
+      const recorded = dayjs(`${dateStr} ${time}`);
+      const target = dayjs(`${dateStr} ${targetTime}`);
+      const diff = recorded.diff(target, "minute");
+      if (diff > 0) lateMinutes = diff;
+    }
+  } catch (error) {
+    console.error("Error computing late minutes:", error);
+    lateMinutes = null;
+  }
+  return lateMinutes;
+};
+
+// Helper function to determine status
+const getStatus = (isDuplicate, lateMinutes, time, targetTime) => {
+  if (isDuplicate) {
+    return "duplicate";
+  } else if (lateMinutes) {
+    return "late";
+  } else if (time && targetTime) {
+    return "ontime";
+  } else {
+    return "unknown";
+  }
+};
+
+// Flex Message: Attendance Success or Duplicate
+function attendanceSuccessMessage(
+  label,
   time,
   date,
   isDuplicate = false,
-}) => {
-  const headerColor = isDuplicate ? "#E65100" : "#1B5E20"; // Orange vs Green
-  const titleText = isDuplicate ? "⚠️ คุณลงเวลาไปแล้ว" : "บันทึกเวลาสำเร็จ";
-  const timeColor = isDuplicate ? "#666666" : "#00B900";
+  targetTime = null
+) {
+  // Compute late minutes
+  const lateMinutes = computeLateMinutes(time, targetTime, date);
 
-  const contents = [
-    // Header Section
-    {
-      type: "text",
-      text: titleText,
-      weight: "bold",
-      size: "xl",
-      color: headerColor,
-      align: "center",
-      margin: "md",
+  // Determine status
+  const status = getStatus(isDuplicate, lateMinutes, time, targetTime);
+
+  // Configuration object for status properties
+  const statusConfig = {
+    duplicate: {
+      headerColor: "#E65100",
+      titleText: "⚠️ คุณลงเวลาไปแล้ว",
+      timeColor: "#666666",
+      subTitleText: `ระบบพบข้อมูล ${label} ในช่วงเวลานี้แล้ว`,
+      badge: {
+        text: "⚠️ ลงเวลาแล้ว",
+        color: "#E65100",
+      },
     },
-    {
-      type: "text",
-      text: isDuplicate
-        ? `ระบบพบข้อมูล ${actionLabel} ในช่วงเวลานี้แล้ว`
-        : `บันทึกข้อมูล ${actionLabel} เรียบร้อยแล้ว`,
-      size: "sm",
-      color: "#666666",
-      wrap: true,
-      align: "center",
-      margin: "md",
+    late: {
+      headerColor: "#E65100",
+      titleText: "บันทึกเวลาสำเร็จ",
+      timeColor: "#E65100",
+      subTitleText: `บันทึกข้อมูล ${label} (สาย)`,
+      badge: {
+        text: `⏱️ สาย ${lateMinutes} นาที`,
+        color: "#E65100",
+      },
     },
-    atoms.separator("lg"),
-    // Detail Section
-    {
+    ontime: {
+      headerColor: "#1B5E20",
+      titleText: "บันทึกเวลาสำเร็จ",
+      timeColor: "#00B900",
+      subTitleText: `บันทึกข้อมูล ${label} เรียบร้อยแล้ว`,
+      badge: {
+        text: "✅ ตรงเวลา",
+        color: "#00B900",
+      },
+    },
+    unknown: {
+      headerColor: "#1B5E20",
+      titleText: "บันทึกเวลาสำเร็จ",
+      timeColor: "#00B900",
+      subTitleText: `บันทึกข้อมูล ${label}`,
+      badge: null,
+    },
+  };
+
+  const config = statusConfig[status];
+
+  // Helper function to create status badge
+  const createStatusBadge = (badge) => {
+    if (!badge) return null;
+    return {
       type: "box",
-      layout: "vertical",
-      margin: "lg",
-      spacing: "md",
+      layout: "baseline",
       contents: [
         {
-          type: "box",
-          layout: "baseline",
-          spacing: "sm",
-          contents: [
-            {
-              type: "text",
-              text: "วันที่",
-              color: "#aaaaaa",
-              size: "sm",
-              flex: 2,
-            },
-            {
-              type: "text",
-              text: dayjs(date).format("D MMM YYYY"),
-              wrap: true,
-              color: "#666666",
-              size: "sm",
-              flex: 4,
-            },
-          ],
+          type: "text",
+          text: badge.text,
+          size: "xs",
+          color: badge.color,
+          weight: "bold",
+          align: "center",
+          flex: 1,
         },
-        {
-          type: "box",
-          layout: "baseline",
-          spacing: "sm",
+      ],
+      margin: "md",
+      spacing: "sm",
+    };
+  };
+
+  const statusBadge = createStatusBadge(config.badge);
+
+  let formattedTime = "--:--";
+  if (time) {
+    formattedTime = time.length > 5 ? time.substring(0, 5) : time;
+  }
+  return atoms.makeFlex("บันทึกเวลา", {
+    ...buildBubble({
+      title: { text: config.titleText, color: config.headerColor },
+      subTitle: { text: config.subTitleText, color: "#666666" },
+      contents: [
+        atoms.boxColumns({
+          margin: "lg",
+          spacing: "md",
           contents: [
-            {
-              type: "text",
-              text: "รายการ",
-              color: "#aaaaaa",
-              size: "sm",
-              flex: 2,
-            },
-            {
-              type: "text",
-              text: actionLabel,
-              wrap: true,
-              color: "#333333",
-              size: "sm",
-              flex: 4,
-              weight: "bold",
-            },
+            atoms.infoRow("วันที่", dayjs(date).format("D MMM YYYY")),
+            atoms.infoRow("รายการ", label, true),
           ],
-        },
-        // Big Time Display
-        {
-          type: "box",
-          layout: "vertical",
+        }),
+        atoms.boxColumns({
           margin: "xl",
           contents: [
             {
               type: "text",
-              text: time ? time.substring(0, 5) : "--:--",
-              size: "4xl",
+              text: formattedTime,
+              size: "3xl",
               weight: "bold",
-              color: timeColor,
+              color: config.timeColor,
               align: "center",
             },
             {
@@ -206,154 +285,163 @@ const attendanceSuccessMessage = ({
               align: "center",
               margin: "sm",
             },
+            // Insert status badge if available
+            ...(statusBadge ? [statusBadge] : []),
           ],
-        },
+        }),
       ],
-    },
-  ];
-
-  const bubble = buildBubble({
-    title: isDuplicate ? "แจ้งเตือน" : "ลงเวลาสำเร็จ",
-    contents: contents,
-    footerText: isDuplicate
-      ? "หากต้องการแก้ไข กรุณาแจ้งหัวหน้างาน"
-      : "ขอบคุณที่ตั้งใจทำงานครับ",
+    }),
   });
-
-  return {
-    type: "flex",
-    altText: isDuplicate ? "คุณลงเวลาไปแล้ว" : `ลงเวลา ${actionLabel} สำเร็จ`,
-    contents: bubble,
-  };
-};
+}
 
 // =============================================================================
 // 2. Flex: แจ้งสถานะวันนี้ (Status Today / Summary)
 // =============================================================================
 
-const attendanceStatusMessage = ({
+function attendanceStatusMessage(
   timestamp,
   workingTime,
   date,
-  isHeaderWarning = false,
-}) => {
+  isHeaderWarning = false
+) {
   const headerText = isHeaderWarning ? "⚠️ สรุปเวลาทำงาน" : "📋 สรุปเวลาทำงาน";
   const headerColor = isHeaderWarning ? "#E65100" : "#0288D1";
 
-  const contents = [
-    {
-      type: "text",
-      text: headerText,
-      weight: "bold",
-      size: "xl",
-      color: headerColor,
-      align: "center",
-      margin: "md",
-    },
-    {
-      type: "text",
-      text: `วันที่ ${dayjs(date).format("D MMM YYYY")}`,
-      size: "xs",
-      color: "#666666",
-      align: "center",
-      margin: "sm",
-    },
-    atoms.separator("lg"),
-    {
-      type: "box",
-      layout: "vertical",
-      margin: "lg",
-      spacing: "md",
+  return atoms.makeFlex("สถานะเวลาทำงาน", {
+    ...buildBubble({
+      title: { text: headerText, color: headerColor },
+      subTitle: {
+        text: `วันที่ ${dayjs(date).format("D MMM YYYY")}`,
+        color: "#666666",
+      },
       contents: [
-        // Row 1: เข้างาน, เริ่มพัก
+        atoms.boxColumns({
+          contents: [
+            // เข้างาน / เริ่มพัก
+            atoms.boxRows({
+              contents: [
+                _smartTimeBox(
+                  "เข้างาน",
+                  timestamp?.start_time,
+                  workingTime?.start_time,
+                  date,
+                  "work_in"
+                ),
+                _smartTimeBox(
+                  "เริ่มพัก",
+                  timestamp?.break_start_time,
+                  workingTime?.break_start_time,
+                  date,
+                  "break_in"
+                ),
+              ],
+            }),
+
+            atoms.separator("md"),
+
+            // เข้างาน(บ่าย) / เลิกงาน
+            atoms.boxRows({
+              margin: "md",
+              contents: [
+                _smartTimeBox(
+                  "เข้างาน(บ่าย)",
+                  timestamp?.break_end_time,
+                  workingTime?.break_end_time,
+                  date,
+                  "break_out"
+                ),
+                _smartTimeBox(
+                  "เลิกงาน",
+                  timestamp?.end_time,
+                  workingTime?.end_time,
+                  date,
+                  "work_out"
+                ),
+              ],
+            }),
+
+            // OT Check - เข้า OT / เลิก OT
+            ...(timestamp?.ot_start_time || workingTime?.ot_start_time
+              ? [
+                  atoms.separator("md"),
+
+                  atoms.boxRows({
+                    margin: "md",
+                    contents: [
+                      _smartTimeBox(
+                        "OT เข้า",
+                        timestamp?.ot_start_time,
+                        workingTime?.ot_start_time,
+                        date,
+                        "ot_in"
+                      ),
+                      _smartTimeBox(
+                        "OT ออก",
+                        timestamp?.ot_end_time,
+                        workingTime?.ot_end_time,
+                        date,
+                        "ot_out"
+                      ),
+                    ],
+                  }),
+                ]
+              : []),
+          ],
+        }),
+        atoms.separator("md"),
+
+        {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "หมายเหตุ:",
+              size: "sm",
+              color: "#222222",
+              weight: "bold",
+              margin: "sm",
+            },
+          ],
+          margin: "md",
+        },
         {
           type: "box",
           layout: "horizontal",
           contents: [
-            _smartTimeBox(
-              "เข้างาน",
-              timestamp?.start_time,
-              workingTime?.start_time,
-              date,
-              "work_in"
-            ),
-            _smartTimeBox(
-              "เริ่มพัก",
-              timestamp?.break_start_time,
-              workingTime?.break_start_time,
-              date,
-              "break_in"
-            ),
+            {
+              type: "text",
+              text: "🟢 ตรงเวลา",
+              size: "xs",
+
+              color: "#00B900",
+              align: "center",
+              flex: 1,
+            },
+            {
+              type: "text",
+              text: "🔴 สาย",
+              size: "xs",
+              color: "#E65100",
+              align: "center",
+              flex: 1,
+            },
+            {
+              type: "text",
+              text: "⚠️ แจ้งลืม",
+              size: "xs",
+              color: "#FF3333",
+              align: "center",
+              flex: 1,
+            },
           ],
         },
-        atoms.separator("sm"),
-        // Row 2: กลับพัก (บ่าย), เลิกงาน (สลับตำแหน่ง StartPM/End ตาม Request)
-        {
-          type: "box",
-          layout: "horizontal",
-          contents: [
-            _smartTimeBox(
-              "เข้างาน(บ่าย)",
-              timestamp?.break_end_time,
-              workingTime?.break_end_time,
-              date,
-              "break_out"
-            ),
-            _smartTimeBox(
-              "เลิกงาน",
-              timestamp?.end_time,
-              workingTime?.end_time,
-              date,
-              "work_out"
-            ),
-          ],
-        },
-        // Row 3: OT Check
-        ...(timestamp?.ot_start_time ||
-        timestamp?.ot_end_time ||
-        workingTime?.ot_start_time ||
-        workingTime?.ot_end_time
-          ? [
-              atoms.separator("sm"),
-              {
-                type: "box",
-                layout: "horizontal",
-                contents: [
-                  _smartTimeBox(
-                    "OT เข้า",
-                    timestamp?.ot_start_time,
-                    workingTime?.ot_start_time,
-                    date,
-                    "ot_in"
-                  ),
-                  _smartTimeBox(
-                    "OT ออก",
-                    timestamp?.ot_end_time,
-                    workingTime?.ot_end_time,
-                    date,
-                    "ot_out"
-                  ),
-                ],
-              },
-            ]
-          : []),
       ],
-    },
-  ];
-
-  const bubble = buildBubble({
-    title: "สถานะเวลาทำงาน",
-    contents: contents,
-    footerText: isHeaderWarning
-      ? "ระบบไม่พบการดำเนินการใหม่"
-      : "ตรวจสอบเวลาของคุณ",
+    }),
   });
+}
 
-  return {
-    type: "flex",
-    altText: "สรุปเวลาทำงานวันนี้",
-    contents: bubble,
-  };
+module.exports = {
+  attendanceSuccessMessage,
+  attendanceStatusMessage,
 };
-
-module.exports = { attendanceSuccessMessage, attendanceStatusMessage };
