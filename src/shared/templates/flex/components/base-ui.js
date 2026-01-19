@@ -217,7 +217,7 @@ function infoColumns(label, value) {
 }
 
 // แถวข้อมูลแบบแบ่ง rows between
-function infoRowsBetween(label, value) {
+function infoRowsBetween(label = {}, value = {}) {
   return {
     type: "box",
     layout: "horizontal",
@@ -225,19 +225,21 @@ function infoRowsBetween(label, value) {
     contents: [
       {
         type: "text",
-        text: label || "",
-        size: "sm",
-        color: "#6f6f6f",
+        text: label.text || "",
+        size: label.size || "sm",
+        color: label.color || "#6f6f6f",
         wrap: true,
-        align: "start",
+        weight: label.weight || "regular",
+        align: label.align || "start",
       },
       {
         type: "text",
-        text: value || "",
-        size: "sm",
-        color: "#222222",
-        align: "end",
+        text: value.text || "",
+        size: value.size || "sm",
+        color: value.color || "#222222",
+        align: value.align || "end",
         wrap: true,
+        weight: value.weight || "regular",
       },
     ],
     margin: "sm",
