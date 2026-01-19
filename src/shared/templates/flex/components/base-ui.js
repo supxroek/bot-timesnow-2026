@@ -1,6 +1,8 @@
 // src/shared/templates/flex/components/base-ui.js
 // ฟังก์ชันสำหรับสร้างองค์ประกอบพื้นฐานของ LINE Flex Messages
 
+const { func } = require("joi");
+
 // สร้าง Flex message
 function makeFlex(altText, contents) {
   return {
@@ -270,6 +272,108 @@ function infoColumnsBetween(label, value) {
   };
 }
 
+// แถวข้อมูลสำหรับรายการที่มีหมายเลขกำกับ
+function infoNumberedRow(number, label, value) {
+  // Determine which arguments are provided and their roles.
+  // Cases:
+  // 1) number + label (value undefined) -> show number and label (label color #222222)
+  // 2) label + value (first arg is string, value undefined) -> show label and value (label #6f6f6f, value #222222)
+  // 3) number + label + value -> show all three (number & label #6f6f6f, value #222222)
+
+  const hasValue = value !== undefined && value !== null && value !== "";
+  const firstIsNumber =
+    typeof number === "number" ||
+    (typeof number === "string" && /^\d+$/.test(number));
+
+  // Build contents based on detected case
+  let contents;
+
+  if (!hasValue && firstIsNumber) {
+    // Case 1: number + label
+    contents = [
+      {
+        type: "text",
+        text: `${number || ""}.`,
+        size: "sm",
+        color: "#6f6f6f",
+        flex: 0,
+        wrap: true,
+        align: "start",
+      },
+      {
+        type: "text",
+        text: label || "",
+        size: "sm",
+        color: "#222222",
+        flex: 6,
+        wrap: true,
+        align: "start",
+      },
+    ];
+  } else if (!hasValue && !firstIsNumber) {
+    // Case 2: label + value (number param actually label)
+    contents = [
+      {
+        type: "text",
+        text: number || "",
+        size: "sm",
+        color: "#6f6f6f",
+        flex: 2,
+        wrap: true,
+        align: "start",
+      },
+      {
+        type: "text",
+        text: label || "",
+        size: "sm",
+        color: "#222222",
+        align: "start",
+        flex: 4,
+        wrap: true,
+      },
+    ];
+  } else {
+    // Case 3: number + label + value (or fallback)
+    contents = [
+      {
+        type: "text",
+        text: `${number || ""}.`,
+        size: "sm",
+        color: "#6f6f6f",
+        flex: 0,
+        wrap: true,
+        align: "start",
+      },
+      {
+        type: "text",
+        text: label || "",
+        size: "sm",
+        color: "#6f6f6f",
+        flex: 3,
+        wrap: true,
+        align: "start",
+      },
+      {
+        type: "text",
+        text: value || "",
+        size: "sm",
+        color: "#222222",
+        align: "start",
+        flex: 4,
+        wrap: true,
+      },
+    ];
+  }
+
+  return {
+    type: "box",
+    layout: "horizontal",
+    spacing: "sm",
+    contents,
+    margin: "sm",
+  };
+}
+
 // ตัวแบ่งแนวนอน
 function separator(margin = "sm") {
   return {
@@ -294,5 +398,6 @@ module.exports = {
   infoColumns,
   infoRowsBetween,
   infoColumnsBetween,
+  infoNumberedRow,
   separator,
 };
