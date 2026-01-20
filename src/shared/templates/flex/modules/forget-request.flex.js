@@ -1,6 +1,5 @@
 const { buildBubble } = require("../layouts/base-layout");
 const atoms = require("../components/base-ui");
-const { func } = require("joi");
 
 // Helper to map type key to readable text
 const getTypeText = (type) => {
