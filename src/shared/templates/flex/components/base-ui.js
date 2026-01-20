@@ -1,8 +1,6 @@
 // src/shared/templates/flex/components/base-ui.js
 // ฟังก์ชันสำหรับสร้างองค์ประกอบพื้นฐานของ LINE Flex Messages
 
-const { func } = require("joi");
-
 // สร้าง Flex message
 function makeFlex(altText, contents) {
   return {
@@ -158,7 +156,7 @@ function buildBullet(text, color) {
 }
 
 // แถวข้อมูลแบบป้ายกำกับและค่า
-function infoRow(label, value) {
+function infoRow(label = {}, value = {}) {
   // Use a 2:4 ratio for label/value and align value to start so long values wrap naturally
   return {
     type: "box",
@@ -167,19 +165,19 @@ function infoRow(label, value) {
     contents: [
       {
         type: "text",
-        text: label || "",
-        size: "sm",
-        color: "#6f6f6f",
+        text: label.text || "",
+        size: label.size || "sm",
+        color: label.color || "#6f6f6f",
+        align: label.align || "start",
         flex: 2,
         wrap: true,
-        align: "start",
       },
       {
         type: "text",
-        text: value || "",
-        size: "sm",
-        color: "#222222",
-        align: "start",
+        text: value.text || "",
+        size: value.size || "sm",
+        color: value.color || "#222222",
+        align: value.align || "start",
         flex: 4,
         wrap: true,
       },
@@ -189,7 +187,7 @@ function infoRow(label, value) {
 }
 
 // แถวข้อมูลแบบป้ายกำกับและค่าที่จัดเป็นคอลัมน์
-function infoColumns(label, value) {
+function infoColumns(label = {}, value = {}) {
   return {
     type: "box",
     layout: "vertical",
@@ -197,18 +195,18 @@ function infoColumns(label, value) {
     contents: [
       {
         type: "text",
-        text: label || "",
-        size: "sm",
-        color: "#6f6f6f",
+        text: label.text || "",
+        size: label.size || "sm",
+        color: label.color || "#6f6f6f",
+        align: label.align || "start",
         wrap: true,
-        align: "start",
       },
       {
         type: "text",
-        text: value || "",
-        size: "sm",
-        color: "#222222",
-        align: "start",
+        text: value.text || "",
+        size: value.size || "sm",
+        color: value.color || "#222222",
+        align: value.align || "start",
         wrap: true,
       },
     ],
@@ -247,7 +245,7 @@ function infoRowsBetween(label = {}, value = {}) {
 }
 
 // แถวข้อมูลแบบแบ่ง columns between
-function infoColumnsBetween(label, value) {
+function infoColumnsBetween(label = {}, value = {}) {
   return {
     type: "box",
     layout: "vertical",
@@ -255,18 +253,20 @@ function infoColumnsBetween(label, value) {
     contents: [
       {
         type: "text",
-        text: label || "",
-        size: "sm",
-        color: "#222222",
+        text: label.text || "",
+        size: label.size || "sm",
+        color: label.color || "#222222",
         wrap: true,
-        align: "start",
+        weight: label.weight || "regular",
+        align: label.align || "start",
       },
       {
         type: "text",
-        text: value || "",
-        size: "sm",
-        color: "#6f6f6f",
-        align: "start",
+        text: value.text || "",
+        size: value.size || "sm",
+        color: value.color || "#6f6f6f",
+        align: value.align || "start",
+        weight: value.weight || "regular",
         wrap: true,
       },
     ],

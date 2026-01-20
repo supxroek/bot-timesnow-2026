@@ -262,8 +262,8 @@ function attendanceSuccessMessage(
           margin: "lg",
           spacing: "md",
           contents: [
-            atoms.infoRow("วันที่", dayjs(date).format("D MMM YYYY")),
-            atoms.infoRow("รายการ", label, true),
+            atoms.infoRow({ text: "วันที่",}, { text: dayjs(date).format("D MMM YYYY"),}),
+            atoms.infoRow({ text: "รายการ",}, { text: label,}),
           ],
         }),
         atoms.boxColumns({

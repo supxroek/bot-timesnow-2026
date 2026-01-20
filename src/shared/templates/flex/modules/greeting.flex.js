@@ -107,8 +107,8 @@ function greetingFlex() {
           }),
 
           atoms.infoRow(
-            "วิธีสมัคร:",
-            "พิมพ์ 'สมัคร' หรือกดปุ่ม 'สมัครสมาชิก' ด้านล่าง"
+            { text: "วิธีสมัคร:" },
+            { text: "พิมพ์ 'สมัคร' หรือกดปุ่ม 'สมัครสมาชิก' ด้านล่าง" },
           ),
 
           // Call to Action Button
@@ -150,9 +150,9 @@ function welcomeNewUserFlex(name = "ผู้ใช้ใหม่") {
 
       atoms.separator("sm"),
 
-      atoms.infoRow("ชื่อ:", name),
-      atoms.infoRow("เริ่มต้นใช้งาน:", 'พิมพ์ "เมนู" เพื่อเรียกเมนูหลัก'),
-      atoms.infoRow("เช็คอิน/เอาท์:", "ใช้ LINE Beacon หรือเมนู LIFF"),
+      atoms.infoRow({ text: "ชื่อ:" }, { text: name }),
+      atoms.infoRow({ text: "เริ่มต้นใช้งาน:" }, { text: 'พิมพ์ "เมนู" เพื่อเรียกเมนูหลัก' }),
+      atoms.infoRow({ text: "เช็คอิน/เอาท์:" }, { text: "ใช้ LINE Beacon หรือเมนู LIFF" }),
 
       atoms.separator("sm"),
 
