@@ -120,6 +120,11 @@ function boxRows(value = {}) {
     spacing: value.spacing || "sm",
     contents: value.contents || [],
     margin: value.margin || "sm",
+
+    // options
+    backgroundColor: value.backgroundColor,
+    cornerRadius: value.cornerRadius,
+    paddingAll: value.paddingAll,
   };
 }
 
@@ -131,6 +136,11 @@ function boxColumns(value = {}) {
     spacing: value.spacing || "sm",
     contents: value.contents || [],
     margin: value.margin || "sm",
+
+    // options
+    backgroundColor: value.backgroundColor,
+    cornerRadius: value.cornerRadius,
+    paddingAll: value.paddingAll,
   };
 }
 
