@@ -81,8 +81,10 @@ function baseText(value = {}) {
     weight: value.weight,
     size: value.size || "sm",
     align: value.align,
+    justifyContent: value.justifyContent,
     color: value.color || "#222222",
     wrap: value.wrap || true,
+    flex: value.flex,
     maxLines: value.maxLines,
     margin: value.margin || "sm",
   };
@@ -120,6 +122,8 @@ function boxRows(value = {}) {
     spacing: value.spacing || "sm",
     contents: value.contents || [],
     margin: value.margin || "sm",
+    flex: value.flex,
+    alignItems: value.alignItems,
 
     // options
     backgroundColor: value.backgroundColor,
@@ -136,6 +140,7 @@ function boxColumns(value = {}) {
     spacing: value.spacing || "sm",
     contents: value.contents || [],
     margin: value.margin || "sm",
+    flex: value.flex,
 
     // options
     backgroundColor: value.backgroundColor,

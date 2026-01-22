@@ -1,416 +1,565 @@
-/**
- * src/shared/templates/flex/modules/report.flex.js
- *
- * Flex Message Template for Monthly Attendance Report (Premium UX Dashboard Style)
- * Focus: Cleanliness, Hierarchy, Mobile-First UX, and Conditional Rendering.
- */
-
 const { buildBubble } = require("../layouts/base-layout");
+const atoms = require("../components/base-ui");
 
-// Main Flex Builder
-const createReportFlex = (data) => {
-  const { period, employeeName, stats, dailyStatuses } = data;
+// flex สำหรับสร้างรายงานสรุปการทำงานประจำเดือน
+function createReportFlex(
+  period,
+  leaveHubConnected,
+  employeeName,
+  stats = {},
+  dailyStatuses = [],
+) {
+  // ค่าเริ่มต้นของ stats
+  stats = {
+    totalLateCount: 0, // จำนวนครั้งที่มาสาย
+    totalLateMinutes: 0, // จำนวนเวลาที่มาสายรวม (นาที)
+    totalWorkHours: 0, // จำนวนชั่วโมงทำงานปกติ
+    totalLeaves: 0, // จำนวนวันลาทั้งหมด
+    leaveDetails: {}, // รายละเอียดการลา (ประเภทและจำนวนวัน)
+    totalAbsent: 0, // จำนวนวันขาดงาน
+    swapCount: 0, // จำนวนวันหยุดชดเชย
+    totalWorkDays: 0, // จำนวนวันทำงานทั้งหมด
+    totalWeekdayOTHours: 0, // จำนวนชั่วโมงโอทีในวันธรรมดา
+    totalHolidayOTHours: 0, // จำนวนชั่วโมงโอทีในวันหยุด
+    ...stats,
+  };
 
-  // --- Logic & Pre-calculation ---
-  const hasLate = stats.totalLateCount > 0;
-  const hasLeave = stats.totalLeaves > 0;
-  const hasAbsent = stats.totalAbsent > 0;
-  const hasSwap = stats.swapCount > 0;
+  // =======================================================================
+  // ส่วนแสดงผลเมื่อเชื่อมต่อกับ LeaveHub
+  const leaveHubContents = [
+    // ข้อมูลการลาและวันหยุด (Leave & Holidays - เชื่อมจาก LeaveHub)
+    atoms.baseText({ text: "การลา & วันหยุด", weight: "bold", margin: "lg" }),
 
-  // --- Dynamic Style Helpers ---
-  const subHeaderColor = "#64748b"; // Slate 500
+    // รายละเอียดการลา
+    Object.keys(stats.leaveDetails).length
+      ? atoms.boxColumns({
+          contents: Object.entries(stats.leaveDetails).map(([type, count]) =>
+            atoms.infoRowsBetween(
+              { text: `${type}` },
+              { text: `${count} วัน`, weight: "bold" },
+            ),
+          ),
+        })
+      : null,
 
-  // 1. Stats Row Components
-  const statBox = (label, value, color, isAlert = false) => ({
-    type: "box",
-    layout: "vertical",
-    flex: 1,
-    contents: [
-      {
-        type: "text",
-        text: value.toString(),
-        size: "4xl", // Main stats size
-        weight: "bold",
-        color: color,
-        align: "center",
-      },
-      {
-        type: "text",
-        text: label,
-        size: "xs", // Small label
-        color: subHeaderColor,
-        align: "center",
-        margin: "sm",
-      },
-    ],
-    backgroundColor: isAlert ? "#fef2f2" : "#ffffff",
-    cornerRadius: "md",
-    paddingAll: "lg", // Increased padding
-  });
+    // รายละเอียดวันหยุดชดเชย (ถ้ามี)
+    stats.swapCount > 0
+      ? atoms.infoRowsBetween(
+          { text: "วันหยุดชดเชย" },
+          { text: `${stats.swapCount} วัน`, weight: "bold" },
+        )
+      : null,
 
-  // 2. Breakdown Section (Conditional)
-  const breakdownSection = [];
+    // เงื่อนไข: รายการวันลาต้องมีมากกว่า 1 รายการ หรือ รายการวันลามี 1 รายการ และมีวันหยุดชดเชยอย่างน้อย 1 วัน
+    // แสดงช่องว่างระหว่างบรรทัด
+    Object.keys(stats.leaveDetails).length > 1 ||
+    (Object.keys(stats.leaveDetails).length > 0 && stats.swapCount > 0)
+      ? atoms.baseText({ text: " " })
+      : null,
 
-  // Late Breakdown
-  if (hasLate) {
-    breakdownSection.push({
-      type: "box",
-      layout: "vertical",
-      backgroundColor: "#fff7ed", // Orange 50
-      cornerRadius: "md",
-      paddingAll: "md",
-      margin: "md",
-      contents: [
-        {
-          type: "box",
-          layout: "horizontal",
-          contents: [
-            {
-              type: "text",
-              text: "⚠️ สถิติการมาสาย",
-              weight: "bold",
-              size: "sm",
-              color: "#c2410c",
-            },
-            {
-              type: "text",
-              text: `${stats.totalLateMinutes} นาที`,
-              weight: "bold",
-              size: "sm",
-              color: "#c2410c",
-              align: "end",
-            },
-          ],
-        },
-        {
-          type: "text",
-          text: `จำนวน ${stats.totalLateCount} ครั้ง`,
-          size: "xs",
-          color: "#f97316",
-          margin: "xs",
-        },
-      ],
-    });
-  }
-
-  // Leave Breakdown
-  if (
-    hasLeave &&
-    stats.leaveDetails &&
-    Object.keys(stats.leaveDetails).length > 0
-  ) {
-    const leaveRows = Object.entries(stats.leaveDetails).map(
-      ([type, count]) => ({
-        type: "box",
-        layout: "horizontal",
-        contents: [
+    // เงื่อนไข: รายการวันลาต้องมีมากกว่า 1 รายการ หรือ รายการวันลามี 1 รายการ และมีวันหยุดชดเชยอย่างน้อย 1 วัน
+    // แสดงยอดรวม
+    Object.keys(stats.leaveDetails).length > 1 ||
+    (Object.keys(stats.leaveDetails).length > 0 && stats.swapCount > 0)
+      ? atoms.infoRowsBetween(
+          { text: "รวม", color: "#374151", weight: "bold" },
           {
-            type: "text",
-            text: `• ${type}`,
-            size: "sm",
-            color: "#4b5563",
-            flex: 3,
+            text: `${stats.totalLeaves + stats.swapCount} วัน`,
+            weight: "bold",
           },
-          {
-            type: "text",
-            text: `${count} วัน`,
-            size: "sm",
-            color: "#4b5563",
-            flex: 1,
-            align: "end",
-          },
-        ],
-        margin: "sm",
-      })
-    );
+        )
+      : null,
 
-    breakdownSection.push({
-      type: "box",
-      layout: "vertical",
-      backgroundColor: "#f0fdf4", // Green 50
-      cornerRadius: "md",
-      paddingAll: "md",
-      margin: "md",
-      contents: [
-        {
-          type: "text",
-          text: "📋 รายละเอียดการลา",
-          weight: "bold",
-          size: "sm",
-          color: "#15803d",
-        },
-        { type: "separator", margin: "md", color: "#bbf7d0" },
-        {
-          type: "box",
-          layout: "vertical",
-          margin: "md",
-          contents: leaveRows,
-        },
-      ],
-    });
-  }
-
-  // Absent Alert
-  if (hasAbsent) {
-    breakdownSection.push({
-      type: "box",
-      layout: "vertical",
-      backgroundColor: "#fef2f2", // Red 50
-      cornerRadius: "md",
-      paddingAll: "md",
-      margin: "md",
-      contents: [
-        {
-          type: "text",
-          text: "❌ มีวันขาดงาน/ลืมลงเวลา",
-          weight: "bold",
-          size: "sm",
-          color: "#dc2626",
-          align: "center",
-        },
-        {
-          type: "text",
-          text: `จำนวน ${stats.totalAbsent} วัน กรุณาติดต่อ HR หรือหัวหน้างาน`,
-          size: "xs",
-          color: "#ef4444",
-          align: "center",
-          wrap: true,
-          margin: "sm",
-        },
-      ],
-    });
-  }
-
-  // 3. Perfect Attendance Badge
-  const heroBadge =
-    !hasLate && !hasAbsent && !hasLeave
-      ? {
-          type: "box",
-          layout: "vertical",
-          backgroundColor: "#dcfce7", // Green 100
-          cornerRadius: "full",
-          paddingStart: "md",
-          paddingEnd: "md",
-          paddingTop: "xs",
-          paddingBottom: "xs",
+    // เงื่อนไข: ถ้าไม่มีรายการลาเลย แต่มีวันหยุดชดเชยเลย
+    Object.keys(stats.leaveDetails).length === 0 && stats.swapCount > 0
+      ? atoms.boxRows({
+          backgroundColor: "#e0f2fe",
+          cornerRadius: "8px",
+          paddingAll: "12px",
           contents: [
-            {
-              type: "text",
-              text: "🏆 Perfect Attendance",
-              size: "xs",
-              color: "#166534",
-              weight: "bold",
+            atoms.baseText({
+              text: `เยี่ยมมาก! คุณทำงานได้โดยไม่มีวันลาในเดือนนี้เลย 🎉`,
+              // weight: "bold",
+              // margin: "md",
               align: "center",
-            },
+            }),
           ],
-          margin: "md",
-        }
-      : null;
+        })
+      : null,
 
-  // 4. Daily Rows (Typography-based)
-  const rows = dailyStatuses.map((day) => {
-    // Styling based on status
-    let rowColor = "#334155";
-    let statusWeight = "regular";
-    let bgColor = null; // Transparent by default
+    // เงื่อนไข: ถ้าไม่มีรายการลาเลย และไม่มีวันหยุดชดเชยเลย
+    Object.keys(stats.leaveDetails).length === 0 &&
+    stats.totalLeaves === 0 &&
+    stats.swapCount === 0
+      ? atoms.boxRows({
+          backgroundColor: "#FFEDD5",
+          cornerRadius: "8px",
+          paddingAll: "12px",
+          contents: [
+            atoms.baseText({
+              text: "คุณไม่มีการลาหรือวันหยุดชดเชยในเดือนนี้ 🎉",
+              // weight: "bold",
+              // margin: "md",
+              align: "center",
+            }),
+          ],
+        })
+      : null,
 
-    if (day.status.includes("สาย")) {
-      rowColor = "#c2410c"; // Orange
-      statusWeight = "bold";
-    } else if (day.status.includes("ลา") && !day.status.includes("มาทำงาน")) {
-      // "Leave" matches but if "Worked (Leave 2 hrs)" -> maybe Work color?
-      // Assuming "ลา" usually means full day leave unless combined with work status.
-      // But my new logic appends "(Leave ...)" to work status.
-      // So if status is "มาทำงาน ... (ลา ...)"
-      // If late, it's orange. If not late but leaves early?
-      // If "Worked", it enters here if "ลา" is present?
-      // "มาทำงาน (ลา...)" -> Hits "ลา".
-      // I should allow "มาทำงาน" to color it Green if not Late?
-      // But "Leave" usually implies Yellow.
-      // Let's refine:
-      rowColor = "#ca8a04"; // Yellow
-    } else if (day.status.includes("ขาด") || day.status.includes("ลืม")) {
-      rowColor = "#dc2626"; // Red
-      statusWeight = "bold";
-      bgColor = "#fef2f2"; // Light Red Bg
-    } else if (day.status.includes("มาทำงาน")) {
-      rowColor = "#059669"; // Green
-      // Covers "วันหยุด (มาทำงาน)" and normal "มาทำงาน"
-    } else if (
-      day.status.includes("หยุด") ||
-      day.status.includes("ชดเชย") ||
-      day.isHoliday
-    ) {
-      rowColor = "#94a3b8"; // Muted Gray
-    } else if (day.status === "-") {
-      rowColor = "#cbd5e1"; // Very light gray
-    }
+    atoms.separator(),
+  ];
 
-    return {
-      type: "box",
-      layout: "horizontal",
-      contents: [
-        {
-          type: "text",
-          text: day.date.substring(0, 5), // dd/mm
-          size: "sm",
-          color: "#94a3b8", // Slate 400
-          flex: 0,
-          weight: "regular",
-          align: "start",
-        },
-        {
-          type: "text",
-          text: day.status,
-          size: "sm",
-          color: rowColor,
-          flex: 1,
-          wrap: true,
-          align: "end", // Right aligned status
-          weight: statusWeight,
-        },
-      ],
-      paddingAll: bgColor ? "sm" : "none",
-      cornerRadius: bgColor ? "sm" : "none",
-      backgroundColor: bgColor || "#00000000",
-      margin: "sm",
-      alignItems: "center",
-    };
-  });
+  // =======================================================================
+  // ส่วนรายการประจำวัน (Daily Statuses)
+  const dailyContents = [
+    atoms.boxColumns({
+      contents: dailyStatuses.map((day) => {
+        // กำหนดสีตามสถานะ
+        const STATUS_COLORS = {
+          normal: "#e8f5e8", // สีเขียวอ่อน (เข้มขึ้นเล็กน้อย)
+          late: "#fff3cd", // สีเหลืองอ่อน (เข้มขึ้นเล็กน้อย)
+          early_exit: "#fff3cd", // สีเหลืองอ่อน (เข้มขึ้นเล็กน้อย)
+          absent: "#f8d7da", // สีแดงอ่อน (เข้มขึ้นเล็กน้อย)
+          default: "#e9ecef", // สีเทาอ่อน (เข้มขึ้นเล็กน้อย)
+        };
 
-  // --- Construct Body ----
-  const bodyContents = [
-    // 1. Employee Header Section
-    ...(heroBadge ? [heroBadge] : []),
-    {
-      type: "text",
-      text: employeeName,
-      weight: "bold",
-      size: "lg",
-      align: "center",
-      color: "#1e293b",
-      margin: "md",
-    },
-    { type: "separator", margin: "lg", color: "#f1f5f9" },
+        // กำหนดสีสำหรับประเภทพิเศษ
+        const SPECIAL_COLORS = {
+          publicHoliday: "#e8f5e8", // สีเขียวอ่อน (เข้มขึ้นเล็กน้อย)
+          compensatory: "#e8f5e8", // สีเขียวอ่อน (เข้มขึ้นเล็กน้อย)
+          shiftSwap: "#cce7ff", // สีฟ้าอ่อน (เข้มขึ้นเล็กน้อย)
+          leave: "#f8d7da", // สีแดงอ่อน (เข้มขึ้นเล็กน้อย)
+          dayOff: "#6c757d", // สีเทาอ่อน (เข้มขึ้นเล็กน้อย)
+        };
 
-    // 2. Main Stats
-    // Row 1: Work & OT
-    {
-      type: "box",
-      layout: "horizontal",
-      spacing: "md",
-      paddingTop: "md",
-      paddingBottom: "sm",
-      contents: [
-        statBox("วันทำงาน", stats.totalWorkDays, "#3b82f6"),
-        { type: "separator", color: "#f1f5f9" },
-        statBox(
-          "OT (ชม.)",
-          stats.totalOTHours || 0,
-          stats.totalOTHours > 0 ? "#10b981" : "#cbd5e1"
-        ),
-      ],
-    },
-    // Row 2: Leave & Absent
-    {
-      type: "box",
-      layout: "horizontal",
-      spacing: "md",
-      paddingTop: "sm",
-      paddingBottom: "lg",
-      contents: [
-        statBox("วันลา", stats.totalLeaves, hasLeave ? "#f59e0b" : "#cbd5e1"),
-        { type: "separator", color: "#f1f5f9" },
-        statBox(
-          "วันขาด",
-          stats.totalAbsent,
-          hasAbsent ? "#ef4444" : "#cbd5e1",
-          hasAbsent
-        ),
-      ],
-    },
-    // { type: "separator", margin: "md", color: "#f1f5f9" },
+        // สร้างข้อความวันที่ (วันในสัปดาห์ + วันที่)
+        const dateText = `${day.dayOfWeek || ""} ${day.date || ""}`.trim();
 
-    // 3. Breakdowns
-    ...breakdownSection,
-
-    // 4. Swap Info
-    ...(hasSwap
-      ? [
-          {
+        // ==============================================================
+        // กรณีเป็นวันหยุดประจำสัปดาห์ (day off) - แสดงสีอ่อนๆ ไม่มีสถานะ
+        // ใช้ padded box แทน filler เพื่อให้ความสูงของแถวเท่ากับแถวอื่น
+        if (day.isDayOff) {
+          return {
             type: "box",
             layout: "horizontal",
-            margin: "md",
-            paddingStart: "lg",
-            paddingEnd: "lg",
+            spacing: "sm",
+            margin: "sm",
+            alignItems: "center",
             contents: [
               {
                 type: "text",
-                text: "🔄 วันหยุดชดเชย",
+                text: dateText,
                 size: "sm",
-                color: "#10b981",
-                flex: 3,
-              },
-              {
-                type: "text",
-                text: `${stats.swapCount} วัน`,
-                size: "sm",
-                color: "#333333",
-                flex: 1,
-                align: "end",
                 weight: "bold",
+                color: SPECIAL_COLORS.dayOff,
+                flex: 1,
+              },
+              {
+                type: "box",
+                layout: "horizontal",
+                flex: 3,
+                contents: [
+                  {
+                    type: "box",
+                    layout: "vertical",
+                    paddingAll: "3px",
+                    contents: [
+                      {
+                        type: "text",
+                        text: "วันหยุดประจำสัปดาห์",
+                        size: "xs",
+                        color: "#9ca3af",
+                        align: "center",
+                      },
+                    ],
+                  },
+                ],
               },
             ],
-          },
-        ]
-      : []),
+          };
+        }
 
-    // 5. Daily List Header
-    {
-      type: "text",
-      text: "รายการประจำวัน",
-      weight: "bold",
-      size: "md",
-      color: "#334155",
-      margin: "xl",
-    },
-    { type: "separator", margin: "md", color: "#e2e8f0" },
+        // ==============================================================
+        // กรณีเป็นวันหยุดนักขัตฤกษ์/ชดเชย/สลับวันหยุด/วันลา - แสดงคาบเกี่ยวทั้งแถว
+        // ต้องตรวจสอบด้วยว่าเชื่อมต่อกับ LeaveHub หรือไม่
+        if (
+          leaveHubConnected &&
+          (day.isPublicHoliday ||
+            day.isCompensatory ||
+            day.isShiftSwap ||
+            day.leaveType)
+        ) {
+          let specialText = "";
+          let specialColor = SPECIAL_COLORS.publicHoliday;
 
-    // 6. Daily List Rows
-    {
-      type: "box",
-      layout: "vertical",
-      margin: "md",
-      spacing: "xs",
-      contents:
-        rows.length > 0
-          ? rows
-          : [
+          if (day.isPublicHoliday) {
+            specialText = day.holidayName || "วันหยุดนักขัตฤกษ์";
+            specialColor = SPECIAL_COLORS.publicHoliday;
+          } else if (day.isCompensatory) {
+            specialText = day.holidayName || "วันหยุดชดเชย";
+            specialColor = SPECIAL_COLORS.compensatory;
+          } else if (day.isShiftSwap) {
+            specialText = "สลับวันหยุด";
+            specialColor = SPECIAL_COLORS.shiftSwap;
+          } else if (day.leaveType) {
+            specialText = day.leaveType;
+            specialColor = SPECIAL_COLORS.leave;
+          }
+
+          return {
+            type: "box",
+            layout: "horizontal",
+            spacing: "sm",
+            margin: "sm",
+            alignItems: "center",
+            contents: [
               {
                 type: "text",
-                text: "ยังไม่มีข้อมูล",
+                text: dateText,
                 size: "sm",
-                color: "#94a3b8",
-                align: "center",
-                margin: "lg",
+                color: "#374151",
+                weight: "bold",
+                flex: 1,
+              },
+              {
+                type: "box",
+                layout: "horizontal",
+                flex: 3,
+                contents: [
+                  {
+                    type: "box",
+                    layout: "vertical",
+                    backgroundColor: specialColor,
+                    cornerRadius: "8px",
+                    paddingAll: "3px",
+                    flex: 1,
+                    contents: [
+                      {
+                        type: "text",
+                        text: specialText,
+                        size: "sm",
+                        color: "#374151",
+                        weight: "bold",
+                        align: "center",
+                      },
+                    ],
+                  },
+                ],
               },
             ],
-    },
+          };
+        }
+
+        // กรณีปกติ - แสดง 3 คอลัมน์: วันที่ | เวลาเข้า | เวลาออก
+        const checkInColor =
+          STATUS_COLORS[day.checkInStatus] || STATUS_COLORS.default;
+        const checkOutColor =
+          STATUS_COLORS[day.checkOutStatus] || STATUS_COLORS.default;
+
+        // ถ้าไม่มีเวลาเข้า/ออก แสดง "-"
+        const checkInText = day.checkInTime || "ไม่ลงเวลาเข้า";
+        const checkOutText = day.checkOutTime || "ไม่ลงเวลาออก";
+
+        return {
+          type: "box",
+          layout: "horizontal",
+          spacing: "sm",
+          margin: "sm",
+          alignItems: "center",
+          contents: [
+            {
+              type: "text",
+              text: dateText,
+              size: "sm",
+              color: "#374151",
+              weight: "bold",
+              flex: 1,
+            },
+            {
+              type: "box",
+              layout: "horizontal",
+              flex: 3,
+              spacing: "sm",
+              contents: [
+                // เวลาเข้างาน
+                day.checkInTime
+                  ? {
+                      type: "box",
+                      layout: "vertical",
+                      backgroundColor: checkInColor,
+                      cornerRadius: "8px",
+                      paddingAll: "3px",
+                      flex: 1,
+                      contents: [
+                        {
+                          type: "text",
+                          text: checkInText,
+                          size: "sm",
+                          color: "#374151",
+                          weight: "bold",
+                          align: "center",
+                        },
+                      ],
+                    }
+                  : {
+                      type: "box",
+                      layout: "vertical",
+                      paddingAll: "3px",
+                      flex: 1,
+                      contents: [
+                        {
+                          type: "text",
+                          text: checkInText,
+                          size: "xs",
+                          color: "#9ca3af",
+                          align: "center",
+                        },
+                      ],
+                    },
+                // เวลาออกงาน
+                day.checkOutTime
+                  ? {
+                      type: "box",
+                      layout: "vertical",
+                      backgroundColor: checkOutColor,
+                      cornerRadius: "8px",
+                      paddingAll: "3px",
+                      flex: 1,
+                      contents: [
+                        {
+                          type: "text",
+                          text: checkOutText,
+                          size: "sm",
+                          color: "#374151",
+                          weight: "bold",
+                          align: "center",
+                        },
+                      ],
+                    }
+                  : {
+                      type: "box",
+                      layout: "vertical",
+                      paddingAll: "3px",
+                      flex: 1,
+                      contents: [
+                        {
+                          type: "text",
+                          text: checkOutText,
+                          size: "xs",
+                          color: "#9ca3af",
+                          align: "center",
+                        },
+                      ],
+                    },
+              ],
+            },
+          ],
+        };
+      }),
+    }),
   ];
 
-  // Use buildBubble for consistent layout
-  const bubble = buildBubble({
-    title: "สรุปการทำงาน",
-    subTitle: { text: period, color: "#64748b" },
-    contents: bodyContents,
-    footerText: "Time Now - Smart Attendance System",
-  });
+  // =======================================================================
+  // เนื้อหาหลักของรายงาน
+  const contents = [
+    // แสดงคำอวย ถ้าไม่มีการขาดงานและมาสายเลย
+    stats.totalAbsent === 0 && stats.totalLateCount === 0
+      ? atoms.boxRows({
+          backgroundColor: "#d1fae5",
+          cornerRadius: "8px",
+          paddingAll: "12px",
+          contents: [
+            atoms.baseText({
+              text: `เยี่ยมมาก! คุณไม่มีการขาดงานหรือมาสายในเดือนนี้เลย 🎉`,
+              align: "center",
+            }),
+          ],
+        })
+      : null,
 
-  return {
-    type: "flex",
-    altText: `รายงานการทำงานเดือน ${period}`,
-    contents: bubble,
-  };
-};
+    // ===============================================
+    // สรุปภาพรวมสถานะ (Attendance Statistics)
+    atoms.baseText({ text: "สถิติการทำงาน", weight: "bold", margin: "lg" }),
+    atoms.boxRows({
+      contents: [
+        // จำนวนวันที่ต้องทำงานทั้งหมด
+        atoms.boxColumns({
+          contents: [
+            atoms.baseText({
+              text: String(
+                stats.totalWorkDays + stats.totalLeaves + stats.totalAbsent,
+              ),
+              size: "xl",
+              weight: "bold",
+              align: "center",
+            }),
+            atoms.baseText({
+              text: "วันทั้งหมด",
+              size: "xs",
+              align: "center",
+              color: "#374151",
+            }),
+          ],
+        }),
+
+        // วันทำงานจริง
+        atoms.boxColumns({
+          contents: [
+            atoms.baseText({
+              text: String(stats.totalWorkDays),
+              size: "xl",
+              weight: "bold",
+              color: "#3b82f6",
+              align: "center",
+            }),
+            atoms.baseText({
+              text: "ทำงานจริง",
+              size: "xs",
+              align: "center",
+              color: "#374151",
+            }),
+          ],
+        }),
+
+        // มาสาย
+        atoms.boxColumns({
+          contents: [
+            atoms.baseText({
+              text: String(
+                stats.totalLateMinutes > 0 ? stats.totalLateCount : 0,
+              ),
+              size: "xl",
+              weight: "bold",
+              color: "#f59e0b",
+              align: "center",
+            }),
+            atoms.baseText({
+              text: "มาสาย",
+              size: "xs",
+              align: "center",
+              color: "#374151",
+            }),
+          ],
+        }),
+
+        // ขาดงาน
+        atoms.boxColumns({
+          contents: [
+            atoms.baseText({
+              text: String(stats.totalAbsent),
+              size: "xl",
+              weight: "bold",
+              color: "#ef4444",
+              align: "center",
+            }),
+            atoms.baseText({
+              text: "ขาดงาน",
+              size: "xs",
+              align: "center",
+              color: "#374151",
+            }),
+          ],
+        }),
+      ],
+    }),
+
+    atoms.separator(),
+
+    // ===============================================
+    // ข้อมูลโอทีและเวลาทำงาน (Work Hours & OT)
+    atoms.baseText({ text: "ชั่วโมงทำงาน", weight: "bold", margin: "lg" }),
+    atoms.boxRows({
+      contents: [
+        // ชั่วโมงทำงานทั้งหมด
+        atoms.boxColumns({
+          contents: [
+            atoms.baseText({
+              text: String(
+                stats.totalWeekdayOTHours +
+                  stats.totalWorkHours +
+                  stats.totalHolidayOTHours,
+              ),
+              size: "xl",
+              weight: "bold",
+              align: "center",
+            }),
+            atoms.baseText({
+              text: "ชั่วโมงทำงานทั้งหมด",
+              size: "xs",
+              align: "center",
+              color: "#374151",
+            }),
+          ],
+        }),
+
+        // ชั่วโมงโอที: วันธรรมดา
+        atoms.boxColumns({
+          contents: [
+            atoms.baseText({
+              text: String(stats.totalWeekdayOTHours),
+              size: "xl",
+              weight: "bold",
+              color: "#10b981",
+              align: "center",
+            }),
+            atoms.baseText({
+              text: "ชั่วโมงโอที   (วันธรรมดา)",
+              size: "xs",
+              align: "center",
+              color: "#374151",
+            }),
+          ],
+        }),
+
+        // ชั่วโมงโอที: วันหยุด
+        atoms.boxColumns({
+          contents: [
+            atoms.baseText({
+              text: String(stats.totalHolidayOTHours),
+              size: "xl",
+              weight: "bold",
+              color: "#10b981",
+              align: "center",
+            }),
+            atoms.baseText({
+              text: "ชั่วโมงโอที   (วันหยุด)",
+              size: "xs",
+              align: "center",
+              color: "#374151",
+            }),
+          ],
+        }),
+      ],
+    }),
+
+    atoms.separator(),
+
+    // เงื่อนไข: แสดงส่วนการลาและวันหยุด ก็ต่อเมื่อเชื่อมต่อกับ LeaveHub
+    ...(leaveHubConnected
+      ? leaveHubContents.filter((c) => c !== null && c !== undefined)
+      : []),
+
+    // ===============================================
+    // รายการประจำวัน (Daily Statuses)
+    atoms.baseText({
+      text: "รายการประจำเดือน" + period,
+      weight: "bold",
+      margin: "lg",
+    }),
+    dailyStatuses.length > 0 ? dailyContents[0] : null,
+  ];
+
+  return atoms.makeFlex(`รายงานการทำงานเดือน ${period}`, {
+    ...buildBubble({
+      title: { text: "รายงานการทำงาน" },
+      subTitle: {
+        text: "สรุปการทำงานของ " + employeeName + " สำหรับเดือน " + period,
+        color: "#64748b",
+      },
+      // กรองเอาเฉพาะ element ที่ไม่เป็น null/undefined
+      contents: contents.filter((c) => c !== null && c !== undefined),
+    }),
+  });
+}
 
 module.exports = { createReportFlex };
